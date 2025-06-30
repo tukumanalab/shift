@@ -154,6 +154,16 @@ button:hover {
     color: white;
 }
 
+.calendar-day.weekend {
+    background-color: #ecf0f1;
+    color: #95a5a6;
+    cursor: not-allowed;
+}
+
+.calendar-day.weekend:hover {
+    background-color: #ecf0f1;
+}
+
 .shifts-list {
     display: flex;
     flex-direction: column;

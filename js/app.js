@@ -98,6 +98,14 @@ async function handleShiftRequest(e) {
     const time = document.getElementById('requestTime').value;
     const note = document.getElementById('requestNote').value;
     
+    // 土日チェック
+    const requestDate = new Date(date);
+    const dayOfWeek = requestDate.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+        alert('土日は申請できません。平日を選択してください。');
+        return;
+    }
+    
     try {
         const { data, error } = await supabase
             .from('shift_requests')
@@ -235,10 +243,18 @@ function renderCalendar() {
     
     for (let day = 1; day <= daysInMonth; day++) {
         const dayElement = document.createElement('div');
-        dayElement.className = 'calendar-day';
+        const date = new Date(year, month, day);
+        const dayOfWeek = date.getDay();
+        
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            dayElement.className = 'calendar-day weekend';
+        } else {
+            dayElement.className = 'calendar-day';
+            dayElement.dataset.date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            dayElement.addEventListener('click', () => selectDate(dayElement.dataset.date));
+        }
+        
         dayElement.textContent = day;
-        dayElement.dataset.date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        dayElement.addEventListener('click', () => selectDate(dayElement.dataset.date));
         calendar.appendChild(dayElement);
     }
     
@@ -331,10 +347,11 @@ function formatDate(dateString) {
 
 function getTimeSlotLabel(timeSlot) {
     const labels = {
-        morning: '朝（9:00-13:00）',
-        afternoon: '昼（13:00-17:00）',
-        evening: '夜（17:00-21:00）',
-        full: '終日（9:00-21:00）'
+        '13:00-14:00': '13:00-14:00',
+        '14:00-15:00': '14:00-15:00',
+        '15:00-16:00': '15:00-16:00',
+        '16:00-17:00': '16:00-17:00',
+        '17:00-18:00': '17:00-18:00'
     };
     return labels[timeSlot] || timeSlot;
 }
