@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シフト管理アプリ</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>アルバイトシフト管理</h1>
+            <div id="userInfo" class="user-info"></div>
+        </header>
+
+        <div id="loginSection" class="login-section">
+            <h2>ログイン</h2>
+            <form id="loginForm">
+                <input type="email" id="email" placeholder="メールアドレス" required>
+                <input type="password" id="password" placeholder="パスワード" required>
+                <button type="submit">ログイン</button>
+            </form>
+            <p>アカウントをお持ちでない方は <a href="#" id="showSignup">新規登録</a></p>
+        </div>
+
+        <div id="signupSection" class="signup-section" style="display: none;">
+            <h2>新規登録</h2>
+            <form id="signupForm">
+                <input type="text" id="signupName" placeholder="名前" required>
+                <input type="email" id="signupEmail" placeholder="メールアドレス" required>
+                <input type="password" id="signupPassword" placeholder="パスワード" required>
+                <button type="submit">登録</button>
+            </form>
+            <p>既にアカウントをお持ちの方は <a href="#" id="showLogin">ログイン</a></p>
+        </div>
+
+        <main id="mainContent" style="display: none;">
+            <div class="tabs">
+                <button class="tab-button active" data-tab="calendar">カレンダー</button>
+                <button class="tab-button" data-tab="shifts">シフト一覧</button>
+                <button class="tab-button" data-tab="request">シフト希望</button>
+            </div>
+
+            <div id="calendarTab" class="tab-content active">
+                <div class="calendar-header">
+                    <button id="prevMonth">&lt;</button>
+                    <h2 id="currentMonth"></h2>
+                    <button id="nextMonth">&gt;</button>
+                </div>
+                <div id="calendar" class="calendar"></div>
+            </div>
+
+            <div id="shiftsTab" class="tab-content" style="display: none;">
+                <h2>シフト一覧</h2>
+                <div id="shiftsList" class="shifts-list"></div>
+            </div>
+
+            <div id="requestTab" class="tab-content" style="display: none;">
+                <h2>シフト希望申請</h2>
+                <form id="shiftRequestForm">
+                    <input type="date" id="requestDate" required>
+                    <select id="requestTime" required>
+                        <option value="">時間帯を選択</option>
+                        <option value="morning">朝（9:00-13:00）</option>
+                        <option value="afternoon">昼（13:00-17:00）</option>
+                        <option value="evening">夜（17:00-21:00）</option>
+                        <option value="full">終日（9:00-21:00）</option>
+                    </select>
+                    <textarea id="requestNote" placeholder="備考（任意）"></textarea>
+                    <button type="submit">申請</button>
+                </form>
+                <div id="requestsList" class="requests-list">
+                    <h3>申請済みシフト希望</h3>
+                    <div id="requestsContent"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
