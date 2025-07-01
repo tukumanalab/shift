@@ -56,41 +56,11 @@ supabase start
 
 ### 4. データベースのセットアップ
 
-ローカルSupabase Studio (http://localhost:54323) のSQL Editorで以下を実行：
+ローカル環境では、`supabase start`実行時にmigrationファイルが自動的に適用されます。
 
-```sql
--- shiftsテーブル
-CREATE TABLE shifts (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    time_slot VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
-);
-
-ALTER TABLE shifts ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own shifts" ON shifts
-    FOR SELECT USING (auth.uid() = user_id);
-
--- shift_requestsテーブル
-CREATE TABLE shift_requests (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    time_slot VARCHAR(20) NOT NULL,
-    note TEXT,
-    status VARCHAR(20) DEFAULT 'pending',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
-);
-
-ALTER TABLE shift_requests ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can create own requests" ON shift_requests
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can view own requests" ON shift_requests
-    FOR SELECT USING (auth.uid() = user_id);
+本番環境にmigrationを適用する場合：
+```bash
+supabase db push
 ```
 
 ### 5. ローカルサーバーの起動

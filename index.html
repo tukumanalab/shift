@@ -39,6 +39,7 @@
                 <button class="tab-button active" data-tab="calendar">カレンダー</button>
                 <button class="tab-button" data-tab="shifts">シフト一覧</button>
                 <button class="tab-button" data-tab="request">シフト希望</button>
+                <button class="tab-button" data-tab="admin" id="adminTab" style="display: none;">管理者</button>
             </div>
 
             <div id="calendarTab" class="tab-content active">
@@ -73,6 +74,18 @@
                 <div id="requestsList" class="requests-list">
                     <h3>申請済みシフト希望</h3>
                     <div id="requestsContent"></div>
+                </div>
+            </div>
+
+            <div id="adminTab" class="tab-content" style="display: none;">
+                <h2>管理者画面</h2>
+                <div class="admin-section">
+                    <h3>全ユーザーのシフト一覧</h3>
+                    <div id="adminShiftsList" class="admin-shifts-list"></div>
+                </div>
+                <div class="admin-section">
+                    <h3>シフト申請一覧</h3>
+                    <div id="adminRequestsList" class="admin-requests-list"></div>
                 </div>
             </div>
         </main>

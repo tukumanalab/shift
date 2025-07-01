@@ -36,6 +36,18 @@ h1 {
 .user-info {
     font-size: 14px;
     color: #666;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.admin-badge {
+    background-color: #e74c3c;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .login-section, .signup-section {
@@ -207,6 +219,91 @@ button:hover {
 
 .status-rejected {
     color: #e74c3c;
+}
+
+.admin-section {
+    margin-bottom: 30px;
+}
+
+.admin-shifts-list, .admin-requests-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.admin-shift-item, .admin-request-item {
+    padding: 15px;
+    border: 1px solid #ecf0f1;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+}
+
+.admin-shift-item:hover, .admin-request-item:hover {
+    background-color: #e9ecef;
+}
+
+.admin-item-info {
+    flex: 1;
+}
+
+.admin-item-user {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.admin-item-details {
+    font-weight: bold;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.delete-btn {
+    background-color: #e74c3c;
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.delete-btn:hover {
+    background-color: #c0392b;
+}
+
+.approve-btn {
+    background-color: #27ae60;
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.approve-btn:hover {
+    background-color: #229954;
+}
+
+.reject-btn {
+    background-color: #f39c12;
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.reject-btn:hover {
+    background-color: #e67e22;
 }
 
 @media (max-width: 768px) {

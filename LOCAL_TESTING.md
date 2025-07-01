@@ -13,6 +13,8 @@ cd /Users/ishihara/js/shift
 supabase start
 ```
 
+初回起動時、`supabase/migrations/`内のmigrationファイルが自動的に適用され、データベーステーブルが作成されます。
+
 ### 2. ローカルWebサーバーの起動
 ```bash
 # http-serverのインストール（初回のみ）

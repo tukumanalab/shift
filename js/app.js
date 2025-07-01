@@ -1,6 +1,7 @@
 let currentUser = null;
 let currentDate = new Date();
 let selectedDate = null;
+let isAdmin = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
@@ -34,12 +35,42 @@ async function checkAuth() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         currentUser = user;
+        await checkAdminStatus();
         showMainContent();
         updateUserInfo();
         loadShifts();
         loadRequests();
+        if (isAdmin) {
+            loadAdminData();
+        }
     } else {
         showLoginForm();
+    }
+}
+
+async function checkAdminStatus() {
+    try {
+        const { data, error } = await supabase
+            .from('user_profiles')
+            .select('is_admin')
+            .eq('user_id', currentUser.id)
+            .single();
+        
+        if (error && error.code !== 'PGRST116') {
+            console.error('管理者ステータスの確認に失敗:', error);
+            return;
+        }
+        
+        isAdmin = data?.is_admin || false;
+        
+        const adminTab = document.getElementById('adminTab');
+        if (isAdmin) {
+            adminTab.style.display = 'block';
+        } else {
+            adminTab.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('管理者ステータスの確認エラー:', error);
     }
 }
 
@@ -57,10 +88,14 @@ async function handleLogin(e) {
         if (error) throw error;
         
         currentUser = data.user;
+        await checkAdminStatus();
         showMainContent();
         updateUserInfo();
         loadShifts();
         loadRequests();
+        if (isAdmin) {
+            loadAdminData();
+        }
     } catch (error) {
         alert('ログインに失敗しました: ' + error.message);
     }
@@ -304,6 +339,10 @@ function switchTab(tabName) {
         content.style.display = 'none';
     });
     document.getElementById(`${tabName}Tab`).style.display = 'block';
+    
+    if (tabName === 'admin' && isAdmin) {
+        loadAdminData();
+    }
 }
 
 function showLoginForm() {
@@ -327,8 +366,10 @@ function showMainContent() {
 function updateUserInfo() {
     const userInfo = document.getElementById('userInfo');
     if (currentUser) {
+        const adminBadge = isAdmin ? '<span class="admin-badge">管理者</span>' : '';
         userInfo.innerHTML = `
             ${currentUser.user_metadata?.name || currentUser.email}
+            ${adminBadge}
             <button onclick="logout()">ログアウト</button>
         `;
     }
@@ -337,6 +378,7 @@ function updateUserInfo() {
 async function logout() {
     await supabase.auth.signOut();
     currentUser = null;
+    isAdmin = false;
     showLoginForm();
 }
 
@@ -365,4 +407,171 @@ function getStatusLabel(status) {
     return labels[status] || status;
 }
 
+async function loadAdminData() {
+    await loadAllShifts();
+    await loadAllRequests();
+}
+
+async function loadAllShifts() {
+    try {
+        const { data, error } = await supabase
+            .from('shifts')
+            .select(`
+                *,
+                user_profiles!inner(user_id)
+            `)
+            .order('date', { ascending: false });
+        
+        if (error) throw error;
+        
+        displayAdminShifts(data || []);
+    } catch (error) {
+        console.error('全シフトの読み込みに失敗しました:', error);
+    }
+}
+
+async function loadAllRequests() {
+    try {
+        const { data, error } = await supabase
+            .from('shift_requests')
+            .select(`
+                *,
+                user_profiles!inner(user_id)
+            `)
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        displayAdminRequests(data || []);
+    } catch (error) {
+        console.error('全申請の読み込みに失敗しました:', error);
+    }
+}
+
+function displayAdminShifts(shifts) {
+    const adminShiftsList = document.getElementById('adminShiftsList');
+    adminShiftsList.innerHTML = '';
+    
+    if (shifts.length === 0) {
+        adminShiftsList.innerHTML = '<p>シフトがありません</p>';
+        return;
+    }
+    
+    shifts.forEach(shift => {
+        const shiftItem = document.createElement('div');
+        shiftItem.className = 'admin-shift-item';
+        shiftItem.innerHTML = `
+            <div class="admin-item-info">
+                <div class="admin-item-user">ユーザーID: ${shift.user_id}</div>
+                <div class="admin-item-details">
+                    ${formatDate(shift.date)} - ${getTimeSlotLabel(shift.time_slot)}
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button class="delete-btn" onclick="deleteShift('${shift.id}')">削除</button>
+            </div>
+        `;
+        adminShiftsList.appendChild(shiftItem);
+    });
+}
+
+function displayAdminRequests(requests) {
+    const adminRequestsList = document.getElementById('adminRequestsList');
+    adminRequestsList.innerHTML = '';
+    
+    if (requests.length === 0) {
+        adminRequestsList.innerHTML = '<p>申請がありません</p>';
+        return;
+    }
+    
+    requests.forEach(request => {
+        const requestItem = document.createElement('div');
+        requestItem.className = 'admin-request-item';
+        requestItem.innerHTML = `
+            <div class="admin-item-info">
+                <div class="admin-item-user">ユーザーID: ${request.user_id}</div>
+                <div class="admin-item-details">
+                    ${formatDate(request.date)} - ${getTimeSlotLabel(request.time_slot)}
+                    <span class="status-${request.status}">(${getStatusLabel(request.status)})</span>
+                </div>
+                ${request.note ? `<div style="font-size: 12px; color: #666; margin-top: 5px;">${request.note}</div>` : ''}
+            </div>
+            <div class="admin-actions">
+                ${request.status === 'pending' ? `
+                    <button class="approve-btn" onclick="updateRequestStatus('${request.id}', 'approved')">承認</button>
+                    <button class="reject-btn" onclick="updateRequestStatus('${request.id}', 'rejected')">却下</button>
+                ` : ''}
+            </div>
+        `;
+        adminRequestsList.appendChild(requestItem);
+    });
+}
+
+async function deleteShift(shiftId) {
+    if (!confirm('このシフトを削除しますか？')) {
+        return;
+    }
+    
+    try {
+        const { error } = await supabase
+            .from('shifts')
+            .delete()
+            .eq('id', shiftId);
+        
+        if (error) throw error;
+        
+        alert('シフトを削除しました');
+        loadAdminData();
+    } catch (error) {
+        alert('削除に失敗しました: ' + error.message);
+    }
+}
+
+async function updateRequestStatus(requestId, status) {
+    try {
+        const { error } = await supabase
+            .from('shift_requests')
+            .update({ status: status })
+            .eq('id', requestId);
+        
+        if (error) throw error;
+        
+        alert(`申請を${status === 'approved' ? '承認' : '却下'}しました`);
+        loadAdminData();
+        
+        if (status === 'approved') {
+            await createShiftFromRequest(requestId);
+        }
+    } catch (error) {
+        alert('ステータス更新に失敗しました: ' + error.message);
+    }
+}
+
+async function createShiftFromRequest(requestId) {
+    try {
+        const { data: request, error: fetchError } = await supabase
+            .from('shift_requests')
+            .select('*')
+            .eq('id', requestId)
+            .single();
+        
+        if (fetchError) throw fetchError;
+        
+        const { error: insertError } = await supabase
+            .from('shifts')
+            .insert([{
+                user_id: request.user_id,
+                date: request.date,
+                time_slot: request.time_slot
+            }]);
+        
+        if (insertError) throw insertError;
+        
+    } catch (error) {
+        console.error('シフト作成に失敗しました:', error);
+    }
+}
+
 window.logout = logout;
+window.deleteShift = deleteShift;
+window.updateRequestStatus = updateRequestStatus;
