@@ -1,12 +1,10 @@
 let currentUser = null;
-let currentDate = new Date();
-let selectedDate = null;
 let isAdmin = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     initializeEventListeners();
-    renderCalendar();
+    populateDateDropdown();
 });
 
 function initializeEventListeners() {
@@ -25,8 +23,6 @@ function initializeEventListeners() {
         button.addEventListener('click', () => switchTab(button.dataset.tab));
     });
     
-    document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
-    document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
     
     document.getElementById('shiftRequestForm').addEventListener('submit', handleShiftRequest);
 }
@@ -40,6 +36,7 @@ async function checkAuth() {
         updateUserInfo();
         loadShifts();
         loadRequests();
+        populateDateDropdown();
         if (isAdmin) {
             loadAdminData();
         }
@@ -130,33 +127,39 @@ async function handleSignup(e) {
 async function handleShiftRequest(e) {
     e.preventDefault();
     const date = document.getElementById('requestDate').value;
-    const time = document.getElementById('requestTime').value;
     const note = document.getElementById('requestNote').value;
     
-    // 土日チェック
-    const requestDate = new Date(date);
-    const dayOfWeek = requestDate.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-        alert('土日は申請できません。平日を選択してください。');
+    // チェックされた時間帯を取得
+    const checkedTimeSlots = [];
+    const checkboxes = document.querySelectorAll('input[name="timeSlot"]:checked');
+    checkboxes.forEach(checkbox => {
+        checkedTimeSlots.push(checkbox.value);
+    });
+    
+    if (checkedTimeSlots.length === 0) {
+        alert('少なくとも1つの時間帯を選択してください。');
         return;
     }
     
+    // 土日チェックは不要（プルダウンで平日のみ選択可能）
+    
     try {
+        // 選択された各時間帯に対して申請を作成
+        const insertData = checkedTimeSlots.map(timeSlot => ({
+            user_id: currentUser.id,
+            date: date,
+            time_slot: timeSlot,
+            note: note,
+            status: 'pending'
+        }));
+        
         const { data, error } = await supabase
             .from('shift_requests')
-            .insert([
-                {
-                    user_id: currentUser.id,
-                    date: date,
-                    time_slot: time,
-                    note: note,
-                    status: 'pending'
-                }
-            ]);
+            .insert(insertData);
         
         if (error) throw error;
         
-        alert('シフト希望を申請しました');
+        alert(`${checkedTimeSlots.length}件のシフト希望を申請しました`);
         document.getElementById('shiftRequestForm').reset();
         loadRequests();
     } catch (error) {
@@ -166,20 +169,15 @@ async function handleShiftRequest(e) {
 
 async function loadShifts() {
     try {
-        const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split('T')[0];
-        const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString().split('T')[0];
-        
         const { data, error } = await supabase
             .from('shifts')
             .select('*')
-            .gte('date', startOfMonth)
-            .lte('date', endOfMonth)
-            .eq('user_id', currentUser.id);
+            .eq('user_id', currentUser.id)
+            .order('date', { ascending: true });
         
         if (error) throw error;
         
         displayShifts(data || []);
-        updateCalendarWithShifts(data || []);
     } catch (error) {
         console.error('シフトの読み込みに失敗しました:', error);
     }
@@ -247,87 +245,9 @@ function displayRequests(requests) {
     });
 }
 
-function renderCalendar() {
-    const calendar = document.getElementById('calendar');
-    calendar.innerHTML = '';
-    
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const daysInPrevMonth = new Date(year, month, 0).getDate();
-    
-    document.getElementById('currentMonth').textContent = `${year}年${month + 1}月`;
-    
-    const dayHeaders = ['日', '月', '火', '水', '木', '金', '土'];
-    dayHeaders.forEach(day => {
-        const header = document.createElement('div');
-        header.className = 'calendar-header-day';
-        header.textContent = day;
-        header.style.fontWeight = 'bold';
-        header.style.textAlign = 'center';
-        calendar.appendChild(header);
-    });
-    
-    for (let i = firstDay - 1; i >= 0; i--) {
-        const day = document.createElement('div');
-        day.className = 'calendar-day other-month';
-        day.textContent = daysInPrevMonth - i;
-        calendar.appendChild(day);
-    }
-    
-    for (let day = 1; day <= daysInMonth; day++) {
-        const dayElement = document.createElement('div');
-        const date = new Date(year, month, day);
-        const dayOfWeek = date.getDay();
-        
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-            dayElement.className = 'calendar-day weekend';
-        } else {
-            dayElement.className = 'calendar-day';
-            dayElement.dataset.date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            dayElement.addEventListener('click', () => selectDate(dayElement.dataset.date));
-        }
-        
-        dayElement.textContent = day;
-        calendar.appendChild(dayElement);
-    }
-    
-    const remainingDays = 42 - (firstDay + daysInMonth);
-    for (let day = 1; day <= remainingDays; day++) {
-        const dayElement = document.createElement('div');
-        dayElement.className = 'calendar-day other-month';
-        dayElement.textContent = day;
-        calendar.appendChild(dayElement);
-    }
-}
 
-function updateCalendarWithShifts(shifts) {
-    document.querySelectorAll('.calendar-day').forEach(day => {
-        day.classList.remove('has-shift');
-    });
-    
-    shifts.forEach(shift => {
-        const dayElement = document.querySelector(`[data-date="${shift.date}"]`);
-        if (dayElement) {
-            dayElement.classList.add('has-shift');
-        }
-    });
-}
 
-function changeMonth(direction) {
-    currentDate.setMonth(currentDate.getMonth() + direction);
-    renderCalendar();
-    loadShifts();
-}
 
-function selectDate(date) {
-    selectedDate = date;
-    document.querySelectorAll('.calendar-day').forEach(day => {
-        day.classList.remove('selected');
-    });
-    document.querySelector(`[data-date="${date}"]`).classList.add('selected');
-}
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-button').forEach(button => {
@@ -372,6 +292,8 @@ function updateUserInfo() {
             ${adminBadge}
             <button onclick="logout()">ログアウト</button>
         `;
+    } else {
+        userInfo.innerHTML = '';
     }
 }
 
@@ -379,6 +301,7 @@ async function logout() {
     await supabase.auth.signOut();
     currentUser = null;
     isAdmin = false;
+    updateUserInfo();
     showLoginForm();
 }
 
@@ -569,6 +492,47 @@ async function createShiftFromRequest(requestId) {
         
     } catch (error) {
         console.error('シフト作成に失敗しました:', error);
+    }
+}
+
+function populateDateDropdown() {
+    const dateSelect = document.getElementById('requestDate');
+    if (!dateSelect) return;
+    
+    dateSelect.innerHTML = '<option value="">日付を選択してください</option>';
+    
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    
+    // 今月の残りの平日（今日以降）
+    addWeekdaysToDropdown(dateSelect, currentYear, currentMonth, today.getDate() + 1);
+    
+    // 来月の平日
+    const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+    const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+    addWeekdaysToDropdown(dateSelect, nextYear, nextMonth, 1);
+}
+
+function addWeekdaysToDropdown(selectElement, year, month, startDay) {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+    
+    for (let day = startDay; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const dayOfWeek = date.getDay();
+        
+        // 土日を除外
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            const option = document.createElement('option');
+            const dateValue = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            option.value = dateValue;
+            
+            const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+            option.textContent = `${monthNames[month]}${day}日 (${weekDays[dayOfWeek]})`;
+            
+            selectElement.appendChild(option);
+        }
     }
 }
 
