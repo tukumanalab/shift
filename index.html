@@ -36,22 +36,12 @@
 
         <main id="mainContent" style="display: none;">
             <div class="tabs">
-                <button class="tab-button active" data-tab="calendar">カレンダー</button>
-                <button class="tab-button" data-tab="shifts">シフト一覧</button>
+                <button class="tab-button active" data-tab="shifts">シフト一覧</button>
                 <button class="tab-button" data-tab="request">シフト希望</button>
                 <button class="tab-button" data-tab="admin" id="adminTab" style="display: none;">管理者</button>
             </div>
 
-            <div id="calendarTab" class="tab-content active">
-                <div class="calendar-header">
-                    <button id="prevMonth">&lt;</button>
-                    <h2 id="currentMonth"></h2>
-                    <button id="nextMonth">&gt;</button>
-                </div>
-                <div id="calendar" class="calendar"></div>
-            </div>
-
-            <div id="shiftsTab" class="tab-content" style="display: none;">
+            <div id="shiftsTab" class="tab-content active">
                 <h2>シフト一覧</h2>
                 <div id="shiftsList" class="shifts-list"></div>
             </div>
@@ -59,15 +49,34 @@
             <div id="requestTab" class="tab-content" style="display: none;">
                 <h2>シフト希望申請</h2>
                 <form id="shiftRequestForm">
-                    <input type="date" id="requestDate" required>
-                    <select id="requestTime" required>
-                        <option value="">時間帯を選択</option>
-                        <option value="13:00-14:00">13:00-14:00</option>
-                        <option value="14:00-15:00">14:00-15:00</option>
-                        <option value="15:00-16:00">15:00-16:00</option>
-                        <option value="16:00-17:00">16:00-17:00</option>
-                        <option value="17:00-18:00">17:00-18:00</option>
+                    <select id="requestDate" required>
+                        <option value="">日付を選択してください</option>
                     </select>
+                    <div class="time-slots">
+                        <label>時間帯を選択（複数選択可）</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="timeSlot" value="13:00-14:00">
+                                <span>13:00-14:00</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="timeSlot" value="14:00-15:00">
+                                <span>14:00-15:00</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="timeSlot" value="15:00-16:00">
+                                <span>15:00-16:00</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="timeSlot" value="16:00-17:00">
+                                <span>16:00-17:00</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="timeSlot" value="17:00-18:00">
+                                <span>17:00-18:00</span>
+                            </label>
+                        </div>
+                    </div>
                     <textarea id="requestNote" placeholder="備考（任意）"></textarea>
                     <button type="submit">申請</button>
                 </form>
