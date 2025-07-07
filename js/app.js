@@ -48,9 +48,9 @@ async function checkAuth() {
 async function checkAdminStatus() {
     try {
         const { data, error } = await supabase
-            .from('user_profiles')
+            .from('users')
             .select('is_admin')
-            .eq('user_id', currentUser.id)
+            .eq('id', currentUser.id)
             .single();
         
         if (error && error.code !== 'PGRST116') {
@@ -59,6 +59,7 @@ async function checkAdminStatus() {
         }
         
         isAdmin = data?.is_admin || false;
+        console.log('管理者ステータス:', isAdmin, 'ユーザーID:', currentUser.id);
         
         const adminTab = document.getElementById('adminTab');
         if (isAdmin) {
@@ -76,11 +77,15 @@ async function handleLogin(e) {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     
+    console.log('ログイン試行:', email, 'Supabase URL:', supabase.supabaseUrl);
+    
     try {
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password
         });
+        
+        console.log('ログイン結果:', { data, error });
         
         if (error) throw error;
         
@@ -90,6 +95,7 @@ async function handleLogin(e) {
         updateUserInfo();
         loadShifts();
         loadRequests();
+        populateDateDropdown();
         if (isAdmin) {
             loadAdminData();
         }
@@ -287,6 +293,7 @@ function updateUserInfo() {
     const userInfo = document.getElementById('userInfo');
     if (currentUser) {
         const adminBadge = isAdmin ? '<span class="admin-badge">管理者</span>' : '';
+        console.log('updateUserInfo - isAdmin:', isAdmin, 'adminBadge:', adminBadge);
         userInfo.innerHTML = `
             ${currentUser.user_metadata?.name || currentUser.email}
             ${adminBadge}
@@ -341,7 +348,7 @@ async function loadAllShifts() {
             .from('shifts')
             .select(`
                 *,
-                user_profiles!inner(user_id)
+                users(id, name)
             `)
             .order('date', { ascending: false });
         
@@ -359,7 +366,7 @@ async function loadAllRequests() {
             .from('shift_requests')
             .select(`
                 *,
-                user_profiles!inner(user_id)
+                users(id, name)
             `)
             .order('created_at', { ascending: false });
         
@@ -385,7 +392,7 @@ function displayAdminShifts(shifts) {
         shiftItem.className = 'admin-shift-item';
         shiftItem.innerHTML = `
             <div class="admin-item-info">
-                <div class="admin-item-user">ユーザーID: ${shift.user_id}</div>
+                <div class="admin-item-user">${shift.users?.name || 'ユーザー不明'}</div>
                 <div class="admin-item-details">
                     ${formatDate(shift.date)} - ${getTimeSlotLabel(shift.time_slot)}
                 </div>
@@ -412,7 +419,7 @@ function displayAdminRequests(requests) {
         requestItem.className = 'admin-request-item';
         requestItem.innerHTML = `
             <div class="admin-item-info">
-                <div class="admin-item-user">ユーザーID: ${request.user_id}</div>
+                <div class="admin-item-user">${request.users?.name || 'ユーザー不明'}</div>
                 <div class="admin-item-details">
                     ${formatDate(request.date)} - ${getTimeSlotLabel(request.time_slot)}
                     <span class="status-${request.status}">(${getStatusLabel(request.status)})</span>
@@ -538,4 +545,4 @@ function addWeekdaysToDropdown(selectElement, year, month, startDay) {
 
 window.logout = logout;
 window.deleteShift = deleteShift;
-window.updateRequestStatus = updateRequestStatus;
+window.updateRequestStatus = updateRequestStatus;// Force cache refresh - #午後

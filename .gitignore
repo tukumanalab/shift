@@ -1,5 +1,6 @@
 # ローカル開発用設定ファイル
 js/supabase-config-local.js
+.env.local
 
 # OS generated files
 .DS_Store
@@ -10,3 +11,11 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+
+# Node.js
+node_modules/
+package-lock.json
