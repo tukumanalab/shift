@@ -5,9 +5,10 @@ Vanilla JavaScriptとSupabaseを使用したシフト管理アプリケーショ
 ## 機能
 
 - ユーザー認証（ログイン/新規登録）
-- カレンダーでのシフト表示
-- シフト希望申請（平日13:00-18:00、1時間単位）
+- シフト一覧表示
+- シフト希望申請（平日13:00-18:00、1時間単位、複数時間帯同時選択可能）
 - 申請履歴の確認
+- 管理者機能（シフト管理、申請の承認・却下）
 
 ## 技術スタック
 
@@ -20,7 +21,7 @@ Vanilla JavaScriptとSupabaseを使用したシフト管理アプリケーショ
 ### 前提条件
 
 - Node.js / npm
-- Supabase CLI
+- Supabase CLI（[インストール方法](https://supabase.com/docs/guides/cli)）
 
 ### 1. Supabase CLIのインストール
 
@@ -39,43 +40,55 @@ git clone [リポジトリURL]
 cd shift
 ```
 
-### 3. ローカルSupabaseの初期化と起動
+### 3. 依存関係のインストール
 
 ```bash
-# 初期化（初回のみ）
-supabase init
-
-# ローカルSupabaseの起動
-supabase start
+npm install
 ```
 
-起動すると以下のURLが利用可能になります：
-- Studio: http://localhost:54323
-- API: http://localhost:54321
-- Inbucket（メール）: http://localhost:54324
-
-### 4. データベースのセットアップ
-
-ローカル環境では、`supabase start`実行時にmigrationファイルが自動的に適用されます。
-
-本番環境にmigrationを適用する場合：
-```bash
-supabase db push
-```
-
-### 5. ローカルサーバーの起動
+### 4. ローカル開発環境の起動
 
 ```bash
-# http-serverのインストール（初回のみ）
-npm install -g http-server
-
-# プロジェクトルートで実行
-http-server
+npm start
 ```
 
-### 6. アプリケーションにアクセス
+このコマンドで以下が自動的に実行されます：
+1. Supabaseローカルコンテナの起動（初回は時間がかかります）
+2. データベースマイグレーションの適用
+3. ローカルWebサーバーの起動（http://localhost:8080）
+4. ブラウザが自動的に開きます
+5. テストユーザーの作成（初回のみ）
 
-ブラウザで http://localhost:8080 を開く（デフォルトポート）
+### 5. 利用可能なURL
+
+- **アプリケーション**: http://localhost:8080
+- **Supabase Studio**: http://localhost:54323 (データベース管理UI)
+- **API**: http://localhost:54321 (APIエンドポイント)
+- **Inbucket**: http://localhost:54324 (メールテスト)
+
+### 6. テストアカウント（ローカル環境）
+
+| メールアドレス | パスワード | 権限 |
+|---|---|---|
+| admin@example.com | password | 管理者 |
+| user1@example.com | password | 一般ユーザー |
+| user2@example.com | password | 一般ユーザー |
+
+### 7. その他のコマンド
+
+```bash
+# 開発環境の停止
+npm run stop
+
+# Supabaseの状態確認
+npm run supabase:status
+
+# データベースのリセット（マイグレーション再適用）
+npm run db:reset
+
+# テストユーザーの作成
+npm run create-users
+```
 
 ## 本番環境へのデプロイ
 
@@ -99,18 +112,96 @@ const SUPABASE_ANON_KEY = 'あなたのAnon Key';
 2. Settings → Pages → Source を "Deploy from a branch" に設定
 3. Branch を main、フォルダを / (root) に設定
 
-## 開発時の注意事項
+## ローカル開発の詳細
 
-- `js/supabase-config-local.js`は`.gitignore`に含まれています
-- 環境に応じて自動的に設定ファイルが切り替わります
-- ローカルではメール確認が無効になっています（`supabase/config.toml`で設定）
+### 環境別設定の自動切り替え
 
-## デバッグ
+`js/supabase-config.js`が環境を自動検出します：
 
-ローカルSupabase Studio (http://localhost:54323) でデータの確認・編集が可能です。
+- **ローカル環境** (`localhost` または `127.0.0.1`): ローカルSupabaseに接続
+- **本番環境** (GitHub Pages): クラウドSupabaseに接続
+
+### ローカルSupabaseの設定
+
+#### メール確認設定
+
+ローカル環境ではメール確認が無効になっています：
+
+```toml
+# supabase/config.toml
+[auth.email]
+enable_confirmations = false  # false = メール確認なし（開発用）
+```
+
+設定変更後の反映方法：
+```bash
+supabase stop
+supabase start
+```
+
+#### メールテスト
+
+ローカル環境で送信されるメールの確認：
+```
+http://localhost:54324 (Inbucket)
+```
+
+### データベース管理
+
+#### Supabase Studio
+```
+http://localhost:54323
+```
+Table Editor、SQL Editor、認証管理などが使用可能
+
+#### データベース直接接続
+```
+postgresql://postgres:postgres@localhost:54322/postgres
+```
+
+### 開発時の注意事項
+
+- `.env.local`ファイルは`.gitignore`に含まれています
+- テストユーザーはAPIを使用して自動作成されます
+- **本番環境では必ずメール確認を有効にしてください**
+
+## トラブルシューティング
+
+### よくある問題と解決方法
+
+1. **Supabaseが起動しない場合**
+   ```bash
+   # Dockerが起動しているか確認
+   docker ps
+   
+   # Supabaseをリセット
+   supabase stop --no-backup
+   supabase start
+   ```
+
+2. **マイグレーションエラーの場合**
+   ```bash
+   # データベースをリセット
+   npm run db:reset
+   ```
+
+3. **ローカル環境に接続できない場合**
+   - ブラウザのコンソールでエラーを確認
+   - `http://localhost:54321`にアクセスできるか確認
+   - キャッシュをクリア（Ctrl+Shift+R または Cmd+Shift+R）
+
+4. **ログインに失敗する場合**
+   ```bash
+   # テストユーザーを再作成
+   npm run create-users
+   ```
+
+5. **管理者バッジが表示されない場合**
+   - ブラウザのキャッシュをクリア
+   - コンソールでエラーを確認
+   - データベースで管理者フラグを確認: http://localhost:54323
 
 ## ドキュメント
 
 - [仕様書](SPECIFICATION.md)
-- [ローカルテスト環境](LOCAL_TESTING.md)
 - [Supabaseセットアップ](supabase-setup.md)

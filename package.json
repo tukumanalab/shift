@@ -1,0 +1,31 @@
+{
+  "name": "shift-management",
+  "version": "1.0.0",
+  "description": "アルバイトシフト管理アプリケーション",
+  "scripts": {
+    "install": "npm run install:deps",
+    "install:deps": "npm install -g http-server",
+    "prestart": "npm run supabase:start",
+    "start": "http-server -p 8080 -o",
+    "poststart": "npm run create-users",
+    "stop": "supabase stop",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "supabase:seed": "supabase db seed",
+    "supabase:status": "supabase status",
+    "db:reset": "npm run supabase:reset",
+    "db:seed": "npm run supabase:seed",
+    "create-users": "./scripts/create-test-users.sh"
+  },
+  "keywords": [
+    "shift",
+    "management",
+    "supabase",
+    "vanilla-js"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}
