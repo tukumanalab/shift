@@ -19,9 +19,16 @@ ALTER TABLE public.shift_capacity ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view shift capacity" ON public.shift_capacity
     FOR SELECT USING (true);
 
--- 管理者のみが許容人数を設定・更新できるポリシー
-CREATE POLICY "Admins can manage shift capacity" ON public.shift_capacity
-    FOR ALL USING (public.is_admin_user(auth.uid()));
+-- 管理者のみが許容人数を設定・更新・削除できるポリシー
+CREATE POLICY "Admins can insert shift capacity" ON public.shift_capacity
+    FOR INSERT WITH CHECK (public.is_admin_user(auth.uid()));
+
+CREATE POLICY "Admins can update shift capacity" ON public.shift_capacity
+    FOR UPDATE USING (public.is_admin_user(auth.uid())) 
+    WITH CHECK (public.is_admin_user(auth.uid()));
+
+CREATE POLICY "Admins can delete shift capacity" ON public.shift_capacity
+    FOR DELETE USING (public.is_admin_user(auth.uid()));
 
 -- 許容人数をチェックする関数（日付ごと）
 CREATE OR REPLACE FUNCTION public.check_shift_capacity(
@@ -91,9 +98,15 @@ CREATE TRIGGER handle_shift_capacity_updated_at
 CREATE INDEX IF NOT EXISTS idx_shift_capacity_date ON public.shift_capacity(date);
 CREATE INDEX IF NOT EXISTS idx_shifts_date_status ON public.shifts(date, status);
 
--- デフォルトの許容人数設定を挿入（今後1週間、各日で1人）
+-- デフォルトの許容人数設定を挿入（今後1週間、平日1人・土日0人）
 INSERT INTO public.shift_capacity (date, max_capacity)
 SELECT 
-    CURRENT_DATE + INTERVAL '1 day' * generate_series(0, 6) as date,
-    1 as max_capacity
+    date_val,
+    CASE 
+        WHEN EXTRACT(DOW FROM date_val) IN (0, 6) THEN 0  -- 土日は0人
+        ELSE 1  -- 平日は1人
+    END as max_capacity
+FROM (
+    SELECT CURRENT_DATE + INTERVAL '1 day' * generate_series(0, 6) as date_val
+) dates
 ON CONFLICT (date) DO NOTHING;

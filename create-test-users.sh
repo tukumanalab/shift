@@ -82,26 +82,26 @@ curl -s -X POST "${SUPABASE_URL}/rest/v1/users" \
 # 5. サンプルシフトデータを追加
 echo "📅 サンプルシフトデータを追加中..."
 
-# 各シフトを個別に追加
+# 各シフトを個別に追加（30分区切り）
 curl -s -X POST "${SUPABASE_URL}/rest/v1/shifts" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
   -H "Content-Type: application/json" \
-  -d "{\"user_id\": \"$USER1_ID\", \"date\": \"2025-01-15\", \"time_slot\": \"13:00-14:00\", \"note\": \"午後からお願いします\", \"status\": \"pending\"}"
+  -d "{\"user_id\": \"$USER1_ID\", \"date\": \"2025-01-15\", \"time_slot\": \"13:00-13:30\", \"note\": \"午後からお願いします\", \"status\": \"pending\"}"
 
 curl -s -X POST "${SUPABASE_URL}/rest/v1/shifts" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
   -H "Content-Type: application/json" \
-  -d "{\"user_id\": \"$USER1_ID\", \"date\": \"2025-01-15\", \"time_slot\": \"14:00-15:00\", \"note\": \"\", \"status\": \"approved\"}"
+  -d "{\"user_id\": \"$USER1_ID\", \"date\": \"2025-01-15\", \"time_slot\": \"14:00-14:30\", \"note\": \"\", \"status\": \"approved\"}"
 
 curl -s -X POST "${SUPABASE_URL}/rest/v1/shifts" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
   -H "Content-Type: application/json" \
-  -d "{\"user_id\": \"$USER2_ID\", \"date\": \"2025-01-15\", \"time_slot\": \"16:00-17:00\", \"note\": \"遅刻の可能性があります\", \"status\": \"pending\"}"
+  -d "{\"user_id\": \"$USER2_ID\", \"date\": \"2025-01-15\", \"time_slot\": \"16:00-16:30\", \"note\": \"遅刻の可能性があります\", \"status\": \"pending\"}"
 
 curl -s -X POST "${SUPABASE_URL}/rest/v1/shifts" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
   -H "Content-Type: application/json" \
-  -d "{\"user_id\": \"$USER2_ID\", \"date\": \"2025-01-16\", \"time_slot\": \"13:00-14:00\", \"note\": \"\", \"status\": \"approved\"}"
+  -d "{\"user_id\": \"$USER2_ID\", \"date\": \"2025-01-16\", \"time_slot\": \"13:30-14:00\", \"note\": \"\", \"status\": \"approved\"}"
 
 echo ""
 echo "🎉 テストユーザーとサンプルデータの作成が完了しました！"
