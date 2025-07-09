@@ -33,12 +33,14 @@ async function checkAuth() {
         currentUser = user;
         await checkAdminStatus();
         showMainContent();
-        updateUserInfo();
-        loadShifts();
-        loadRequests();
-        populateDateDropdown();
+        await updateUserInfo();
         if (isAdmin) {
+            // 管理者の場合はシフト管理タブを表示
+            switchTab('manage');
             loadAdminData();
+        } else {
+            loadShifts();
+            populateDateDropdown();
         }
     } else {
         showLoginForm();
@@ -59,13 +61,23 @@ async function checkAdminStatus() {
         }
         
         isAdmin = data?.is_admin || false;
-        console.log('管理者ステータス:', isAdmin, 'ユーザーID:', currentUser.id);
         
-        const adminTab = document.getElementById('adminTab');
-        if (isAdmin) {
-            adminTab.style.display = 'block';
-        } else {
-            adminTab.style.display = 'none';
+        // 管理者の場合はシフト一覧・シフト申請タブを非表示、シフト管理・設定タブを表示
+        const shiftsTabButton = document.querySelector('[data-tab="shifts"]');
+        const requestTabButton = document.querySelector('[data-tab="request"]');
+        const manageTabButton = document.getElementById('manageTabButton');
+        const settingsTabButton = document.getElementById('settingsTabButton');
+        if (shiftsTabButton) {
+            shiftsTabButton.style.display = isAdmin ? 'none' : 'inline-block';
+        }
+        if (requestTabButton) {
+            requestTabButton.style.display = isAdmin ? 'none' : 'inline-block';
+        }
+        if (manageTabButton) {
+            manageTabButton.style.display = isAdmin ? 'inline-block' : 'none';
+        }
+        if (settingsTabButton) {
+            settingsTabButton.style.display = isAdmin ? 'inline-block' : 'none';
         }
     } catch (error) {
         console.error('管理者ステータスの確認エラー:', error);
@@ -77,7 +89,6 @@ async function handleLogin(e) {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     
-    console.log('ログイン試行:', email, 'Supabase URL:', supabase.supabaseUrl);
     
     try {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -85,19 +96,20 @@ async function handleLogin(e) {
             password
         });
         
-        console.log('ログイン結果:', { data, error });
         
         if (error) throw error;
         
         currentUser = data.user;
         await checkAdminStatus();
         showMainContent();
-        updateUserInfo();
-        loadShifts();
-        loadRequests();
-        populateDateDropdown();
+        await updateUserInfo();
         if (isAdmin) {
+            // 管理者の場合はシフト管理タブを表示
+            switchTab('manage');
             loadAdminData();
+        } else {
+            loadShifts();
+            populateDateDropdown();
         }
     } catch (error) {
         alert('ログインに失敗しました: ' + error.message);
@@ -160,14 +172,15 @@ async function handleShiftRequest(e) {
         }));
         
         const { data, error } = await supabase
-            .from('shift_requests')
+            .from('shifts')
             .insert(insertData);
         
         if (error) throw error;
         
         alert(`${checkedTimeSlots.length}件のシフト希望を申請しました`);
         document.getElementById('shiftRequestForm').reset();
-        loadRequests();
+        loadShifts();
+        loadUserShifts();
     } catch (error) {
         alert('申請に失敗しました: ' + error.message);
     }
@@ -175,6 +188,7 @@ async function handleShiftRequest(e) {
 
 async function loadShifts() {
     try {
+        // 全ユーザーが自分のシフトのみを表示
         const { data, error } = await supabase
             .from('shifts')
             .select('*')
@@ -189,21 +203,6 @@ async function loadShifts() {
     }
 }
 
-async function loadRequests() {
-    try {
-        const { data, error } = await supabase
-            .from('shift_requests')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .order('date', { ascending: false });
-        
-        if (error) throw error;
-        
-        displayRequests(data || []);
-    } catch (error) {
-        console.error('申請の読み込みに失敗しました:', error);
-    }
-}
 
 function displayShifts(shifts) {
     const shiftsList = document.getElementById('shiftsList');
@@ -221,33 +220,137 @@ function displayShifts(shifts) {
             <div>
                 <strong>${formatDate(shift.date)}</strong>
                 <span>${getTimeSlotLabel(shift.time_slot)}</span>
+                <span class="status-${shift.status || 'pending'}">${getStatusLabel(shift.status || 'pending')}</span>
+                ${shift.note ? `<p class="shift-note">${shift.note}</p>` : ''}
             </div>
         `;
         shiftsList.appendChild(shiftItem);
     });
 }
 
-function displayRequests(requests) {
+async function loadAdminData() {
+    try {
+        // まずシフトデータを取得
+        const { data: shiftsData, error: shiftsError } = await supabase
+            .from('shifts')
+            .select('*')
+            .order('date', { ascending: false });
+        
+        if (shiftsError) throw shiftsError;
+        
+        // ユニークなユーザーIDを取得
+        const userIds = [...new Set(shiftsData.map(shift => shift.user_id))];
+        
+        // usersテーブルからユーザー情報を取得
+        const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('id, name')
+            .in('id', userIds);
+        
+        if (usersError) {
+            console.error('ユーザーデータ取得エラー:', usersError);
+        }
+        
+        // ユーザー情報をマップに変換
+        const usersMap = {};
+        if (usersData) {
+            usersData.forEach(user => {
+                usersMap[user.id] = user.name;
+            });
+        }
+        
+        // シフトデータにユーザー名を追加
+        const shiftsWithUsers = shiftsData.map(shift => ({
+            ...shift,
+            users: {
+                name: usersMap[shift.user_id] || `ユーザー${shift.user_id.slice(-8)}`
+            }
+        }));
+        
+        displayAdminShifts(shiftsWithUsers);
+    } catch (error) {
+        console.error('管理者用シフトの読み込みに失敗しました:', error);
+    }
+}
+
+function displayAdminShifts(shifts) {
+    const adminShiftsList = document.getElementById('adminShiftsList');
+    if (!adminShiftsList) {
+        console.error('adminShiftsList要素が見つかりません');
+        return;
+    }
+    adminShiftsList.innerHTML = '';
+    
+    if (shifts.length === 0) {
+        adminShiftsList.innerHTML = '<p>シフトがありません</p>';
+        return;
+    }
+    
+    shifts.forEach(shift => {
+        const shiftItem = document.createElement('div');
+        shiftItem.className = 'admin-shift-item';
+        
+        const userName = shift.users?.name || 'ユーザー不明';
+        
+        shiftItem.innerHTML = `
+            <div class="admin-item-info">
+                <div class="admin-item-user">ユーザー: ${userName}</div>
+                <div class="admin-item-details">
+                    ${formatDate(shift.date)} - ${getTimeSlotLabel(shift.time_slot)}
+                    <span class="status-${shift.status || 'pending'}">(${getStatusLabel(shift.status || 'pending')})</span>
+                </div>
+                ${shift.note ? `<div style="font-size: 12px; color: #666; margin-top: 5px;">${shift.note}</div>` : ''}
+            </div>
+            <div class="admin-actions">
+                <select onchange="updateShiftStatus('${shift.id}', this.value)" class="status-select">
+                    <option value="pending" ${(shift.status || 'pending') === 'pending' ? 'selected' : ''}>承認待ち</option>
+                    <option value="approved" ${(shift.status || 'pending') === 'approved' ? 'selected' : ''}>承認</option>
+                    <option value="rejected" ${(shift.status || 'pending') === 'rejected' ? 'selected' : ''}>却下</option>
+                </select>
+                <button class="delete-btn" onclick="deleteShift('${shift.id}')">削除</button>
+            </div>
+        `;
+        adminShiftsList.appendChild(shiftItem);
+    });
+}
+
+async function loadUserShifts() {
+    try {
+        const { data, error } = await supabase
+            .from('shifts')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('date', { ascending: true });
+        
+        if (error) throw error;
+        
+        displayUserShifts(data || []);
+    } catch (error) {
+        console.error('ユーザーシフトの読み込みに失敗しました:', error);
+    }
+}
+
+function displayUserShifts(shifts) {
     const requestsContent = document.getElementById('requestsContent');
     requestsContent.innerHTML = '';
     
-    if (requests.length === 0) {
+    if (shifts.length === 0) {
         requestsContent.innerHTML = '<p>申請がありません</p>';
         return;
     }
     
-    requests.forEach(request => {
-        const requestItem = document.createElement('div');
-        requestItem.className = 'request-item';
-        requestItem.innerHTML = `
+    shifts.forEach(shift => {
+        const shiftItem = document.createElement('div');
+        shiftItem.className = 'request-item';
+        shiftItem.innerHTML = `
             <div>
-                <strong>${formatDate(request.date)}</strong>
-                <span>${getTimeSlotLabel(request.time_slot)}</span>
-                ${request.note ? `<p>${request.note}</p>` : ''}
+                <strong>${formatDate(shift.date)}</strong>
+                <span>${getTimeSlotLabel(shift.time_slot)}</span>
+                ${shift.note ? `<p>${shift.note}</p>` : ''}
             </div>
-            <span class="status-${request.status}">${getStatusLabel(request.status)}</span>
+            <span class="status-${shift.status}">${getStatusLabel(shift.status)}</span>
         `;
-        requestsContent.appendChild(requestItem);
+        requestsContent.appendChild(shiftItem);
     });
 }
 
@@ -256,6 +359,13 @@ function displayRequests(requests) {
 
 
 function switchTab(tabName) {
+    
+    // 管理者がシフト申請タブにアクセスしようとした場合はリダイレクト
+    if (isAdmin && tabName === 'request') {
+        switchTab('shifts');
+        return;
+    }
+    
     document.querySelectorAll('.tab-button').forEach(button => {
         button.classList.remove('active');
     });
@@ -264,9 +374,13 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => {
         content.style.display = 'none';
     });
-    document.getElementById(`${tabName}Tab`).style.display = 'block';
     
-    if (tabName === 'admin' && isAdmin) {
+    const targetTab = document.getElementById(`${tabName}Tab`);
+    targetTab.style.display = 'block';
+    
+    if (tabName === 'request') {
+        loadUserShifts();
+    } else if (tabName === 'manage' && isAdmin) {
         loadAdminData();
     }
 }
@@ -289,13 +403,29 @@ function showMainContent() {
     document.getElementById('mainContent').style.display = 'block';
 }
 
-function updateUserInfo() {
+async function updateUserInfo() {
     const userInfo = document.getElementById('userInfo');
     if (currentUser) {
         const adminBadge = isAdmin ? '<span class="admin-badge">管理者</span>' : '';
-        console.log('updateUserInfo - isAdmin:', isAdmin, 'adminBadge:', adminBadge);
+        
+        // usersテーブルからユーザー名を取得
+        let userName = currentUser.email; // デフォルトはメールアドレス
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', currentUser.id)
+                .single();
+            
+            if (data && data.name) {
+                userName = data.name;
+            }
+        } catch (error) {
+            console.error('ユーザー名取得エラー:', error);
+        }
+        
         userInfo.innerHTML = `
-            ${currentUser.user_metadata?.name || currentUser.email}
+            ${userName}
             ${adminBadge}
             <button onclick="logout()">ログアウト</button>
         `;
@@ -337,105 +467,8 @@ function getStatusLabel(status) {
     return labels[status] || status;
 }
 
-async function loadAdminData() {
-    await loadAllShifts();
-    await loadAllRequests();
-}
+// 管理者専用の関数は削除（displayAdminShiftsはdisplayShifts内に統合済み）
 
-async function loadAllShifts() {
-    try {
-        const { data, error } = await supabase
-            .from('shifts')
-            .select(`
-                *,
-                users(id, name)
-            `)
-            .order('date', { ascending: false });
-        
-        if (error) throw error;
-        
-        displayAdminShifts(data || []);
-    } catch (error) {
-        console.error('全シフトの読み込みに失敗しました:', error);
-    }
-}
-
-async function loadAllRequests() {
-    try {
-        const { data, error } = await supabase
-            .from('shift_requests')
-            .select(`
-                *,
-                users(id, name)
-            `)
-            .order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        
-        displayAdminRequests(data || []);
-    } catch (error) {
-        console.error('全申請の読み込みに失敗しました:', error);
-    }
-}
-
-function displayAdminShifts(shifts) {
-    const adminShiftsList = document.getElementById('adminShiftsList');
-    adminShiftsList.innerHTML = '';
-    
-    if (shifts.length === 0) {
-        adminShiftsList.innerHTML = '<p>シフトがありません</p>';
-        return;
-    }
-    
-    shifts.forEach(shift => {
-        const shiftItem = document.createElement('div');
-        shiftItem.className = 'admin-shift-item';
-        shiftItem.innerHTML = `
-            <div class="admin-item-info">
-                <div class="admin-item-user">${shift.users?.name || 'ユーザー不明'}</div>
-                <div class="admin-item-details">
-                    ${formatDate(shift.date)} - ${getTimeSlotLabel(shift.time_slot)}
-                </div>
-            </div>
-            <div class="admin-actions">
-                <button class="delete-btn" onclick="deleteShift('${shift.id}')">削除</button>
-            </div>
-        `;
-        adminShiftsList.appendChild(shiftItem);
-    });
-}
-
-function displayAdminRequests(requests) {
-    const adminRequestsList = document.getElementById('adminRequestsList');
-    adminRequestsList.innerHTML = '';
-    
-    if (requests.length === 0) {
-        adminRequestsList.innerHTML = '<p>申請がありません</p>';
-        return;
-    }
-    
-    requests.forEach(request => {
-        const requestItem = document.createElement('div');
-        requestItem.className = 'admin-request-item';
-        requestItem.innerHTML = `
-            <div class="admin-item-info">
-                <div class="admin-item-user">${request.users?.name || 'ユーザー不明'}</div>
-                <div class="admin-item-details">
-                    ${formatDate(request.date)} - ${getTimeSlotLabel(request.time_slot)}
-                    <span class="status-${request.status}">(${getStatusLabel(request.status)})</span>
-                </div>
-                ${request.note ? `<div style="font-size: 12px; color: #666; margin-top: 5px;">${request.note}</div>` : ''}
-            </div>
-            <div class="admin-actions">
-                ${request.status === 'pending' ? `
-                    <button class="approve-btn" onclick="updateRequestStatus('${request.id}', 'approved')">承認</button>
-                    <button class="reject-btn" onclick="updateRequestStatus('${request.id}', 'rejected')">却下</button>
-                ` : ''}
-            </div>
-        `;
-        adminRequestsList.appendChild(requestItem);
-    });
-}
 
 async function deleteShift(shiftId) {
     if (!confirm('このシフトを削除しますか？')) {
@@ -457,48 +490,21 @@ async function deleteShift(shiftId) {
     }
 }
 
-async function updateRequestStatus(requestId, status) {
+
+
+async function updateShiftStatus(shiftId, status) {
     try {
         const { error } = await supabase
-            .from('shift_requests')
+            .from('shifts')
             .update({ status: status })
-            .eq('id', requestId);
+            .eq('id', shiftId);
         
         if (error) throw error;
         
-        alert(`申請を${status === 'approved' ? '承認' : '却下'}しました`);
+        alert(`シフトを${getStatusLabel(status)}に変更しました`);
         loadAdminData();
-        
-        if (status === 'approved') {
-            await createShiftFromRequest(requestId);
-        }
     } catch (error) {
         alert('ステータス更新に失敗しました: ' + error.message);
-    }
-}
-
-async function createShiftFromRequest(requestId) {
-    try {
-        const { data: request, error: fetchError } = await supabase
-            .from('shift_requests')
-            .select('*')
-            .eq('id', requestId)
-            .single();
-        
-        if (fetchError) throw fetchError;
-        
-        const { error: insertError } = await supabase
-            .from('shifts')
-            .insert([{
-                user_id: request.user_id,
-                date: request.date,
-                time_slot: request.time_slot
-            }]);
-        
-        if (insertError) throw insertError;
-        
-    } catch (error) {
-        console.error('シフト作成に失敗しました:', error);
     }
 }
 
@@ -545,4 +551,4 @@ function addWeekdaysToDropdown(selectElement, year, month, startDay) {
 
 window.logout = logout;
 window.deleteShift = deleteShift;
-window.updateRequestStatus = updateRequestStatus;// Force cache refresh - #午後
+window.updateShiftStatus = updateShiftStatus;

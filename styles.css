@@ -291,6 +291,21 @@ button:hover {
     background-color: #e67e22;
 }
 
+.status-select {
+    padding: 5px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-right: 10px;
+    cursor: pointer;
+    background-color: white;
+}
+
+.status-select:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
 @media (max-width: 768px) {
     .container {
         padding: 10px;

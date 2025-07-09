@@ -37,8 +37,9 @@
         <main id="mainContent" style="display: none;">
             <div class="tabs">
                 <button class="tab-button active" data-tab="shifts">シフト一覧</button>
-                <button class="tab-button" data-tab="request">シフト希望</button>
-                <button class="tab-button" data-tab="admin" id="adminTab" style="display: none;">管理者</button>
+                <button class="tab-button" data-tab="request">シフト申請</button>
+                <button class="tab-button" data-tab="manage" id="manageTabButton" style="display: none;">シフト管理</button>
+                <button class="tab-button" data-tab="settings" id="settingsTabButton" style="display: none;">設定</button>
             </div>
 
             <div id="shiftsTab" class="tab-content active">
@@ -47,7 +48,7 @@
             </div>
 
             <div id="requestTab" class="tab-content" style="display: none;">
-                <h2>シフト希望申請</h2>
+                <h2>シフト申請</h2>
                 <form id="shiftRequestForm">
                     <select id="requestDate" required>
                         <option value="">日付を選択してください</option>
@@ -81,27 +82,32 @@
                     <button type="submit">申請</button>
                 </form>
                 <div id="requestsList" class="requests-list">
-                    <h3>申請済みシフト希望</h3>
+                    <h3>申請済みシフト</h3>
                     <div id="requestsContent"></div>
                 </div>
             </div>
 
-            <div id="adminTab" class="tab-content" style="display: none;">
-                <h2>管理者画面</h2>
+            <div id="manageTab" class="tab-content" style="display: none;">
+                <h2>シフト管理</h2>
                 <div class="admin-section">
                     <h3>全ユーザーのシフト一覧</h3>
                     <div id="adminShiftsList" class="admin-shifts-list"></div>
                 </div>
-                <div class="admin-section">
-                    <h3>シフト申請一覧</h3>
-                    <div id="adminRequestsList" class="admin-requests-list"></div>
+            </div>
+
+            <div id="settingsTab" class="tab-content" style="display: none;">
+                <h2>設定</h2>
+                <div class="settings-section">
+                    <h3>システム設定</h3>
+                    <p>システムの各種設定を行えます。</p>
                 </div>
             </div>
+
         </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase-config.js"></script>
-    <script src="js/app.js?v=3"></script>
+    <script src="js/app.js?v=4"></script>
 </body>
 </html>
