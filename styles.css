@@ -306,6 +306,162 @@ button:hover {
     border-color: #3498db;
 }
 
+/* 許容人数設定のスタイル */
+.settings-section {
+    margin-bottom: 30px;
+}
+
+.capacity-calendar {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.capacity-calendar h4 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.calendar-month {
+    margin-bottom: 30px;
+}
+
+.calendar-month-header {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 15px;
+    text-align: center;
+    padding: 10px;
+    background-color: #3498db;
+    color: white;
+    border-radius: 8px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    background-color: #ecf0f1;
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.calendar-day-header {
+    background-color: #34495e;
+    color: white;
+    padding: 10px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.calendar-day-header:nth-child(6),
+.calendar-day-header:nth-child(7) {
+    background-color: #dc2626;
+}
+
+.calendar-empty-cell {
+    background-color: #f8f9fa;
+    height: 80px;
+}
+
+.calendar-date-cell {
+    background-color: white;
+    padding: 8px;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.calendar-date-cell:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.calendar-date-cell.weekend {
+    background-color: #fef2f2;
+}
+
+.calendar-date-cell.weekend:hover {
+    background-color: #fecaca;
+}
+
+.calendar-date-cell.weekday {
+    background-color: white;
+}
+
+.calendar-date-cell.weekend .calendar-date-number {
+    color: #dc2626;
+}
+
+.calendar-date-number {
+    font-weight: 600;
+    font-size: 16px;
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.calendar-capacity-input {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.capacity-input {
+    width: 40px;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.capacity-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.capacity-unit {
+    font-size: 11px;
+    color: #666;
+}
+
+.save-all-btn {
+    background-color: #27ae60;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    width: 100%;
+}
+
+.save-all-btn:hover {
+    background-color: #229954;
+}
+
+.capacity-info-admin {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.capacity-warning {
+    color: #e74c3c;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
 @media (max-width: 768px) {
     .container {
         padding: 10px;
@@ -313,6 +469,37 @@ button:hover {
     
     .tabs {
         flex-direction: column;
+    }
+    
+    .capacity-calendar {
+        padding: 15px;
+    }
+    
+    .calendar-month-header {
+        font-size: 16px;
+        padding: 8px;
+    }
+    
+    .calendar-grid {
+        gap: 1px;
+    }
+    
+    .calendar-date-cell {
+        min-height: 60px;
+        padding: 6px;
+    }
+    
+    .calendar-date-number {
+        font-size: 14px;
+    }
+    
+    .capacity-input {
+        width: 35px;
+        font-size: 11px;
+    }
+    
+    .capacity-unit {
+        font-size: 10px;
     }
     
 }

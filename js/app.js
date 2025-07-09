@@ -25,6 +25,9 @@ function initializeEventListeners() {
     
     
     document.getElementById('shiftRequestForm').addEventListener('submit', handleShiftRequest);
+    
+    // 許容人数設定の保存ボタンのイベントリスナー
+    document.getElementById('saveAllCapacities').addEventListener('click', saveAllCapacities);
 }
 
 async function checkAuth() {
@@ -162,6 +165,32 @@ async function handleShiftRequest(e) {
     // 土日チェックは不要（プルダウンで平日のみ選択可能）
     
     try {
+        // 日付の許容人数をチェック
+        const selectedDate = new Date(date);
+        const dayOfWeek = selectedDate.getDay();
+        
+        // 土日の場合は警告を表示
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            const confirmMessage = `${formatDate(date)}は土日のため、通常はシフトがありません。\n\n申請を続行しますか？`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+        }
+        
+        const { data: capacityData, error: capacityError } = await supabase
+            .rpc('check_shift_capacity', {
+                p_date: date
+            });
+        
+        if (capacityError) {
+            console.error('許容人数チェックエラー:', capacityError);
+        } else if (!capacityData) {
+            const confirmMessage = `${formatDate(date)}は許容人数に達している可能性があります。\n\n申請を続行しますか？`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+        }
+        
         // 選択された各時間帯に対して申請を作成
         const insertData = checkedTimeSlots.map(timeSlot => ({
             user_id: currentUser.id,
@@ -251,6 +280,15 @@ async function loadAdminData() {
             console.error('ユーザーデータ取得エラー:', usersError);
         }
         
+        // 許容人数情報を取得
+        const { data: capacityData, error: capacityError } = await supabase
+            .from('shift_capacity')
+            .select('*');
+        
+        if (capacityError) {
+            console.error('許容人数データ取得エラー:', capacityError);
+        }
+        
         // ユーザー情報をマップに変換
         const usersMap = {};
         if (usersData) {
@@ -259,12 +297,21 @@ async function loadAdminData() {
             });
         }
         
-        // シフトデータにユーザー名を追加
+        // 許容人数情報をマップに変換
+        const capacityMap = {};
+        if (capacityData) {
+            capacityData.forEach(capacity => {
+                capacityMap[capacity.date] = capacity.max_capacity;
+            });
+        }
+        
+        // シフトデータにユーザー名と許容人数情報を追加
         const shiftsWithUsers = shiftsData.map(shift => ({
             ...shift,
             users: {
                 name: usersMap[shift.user_id] || `ユーザー${shift.user_id.slice(-8)}`
-            }
+            },
+            capacity: capacityMap[shift.date] || 1
         }));
         
         displayAdminShifts(shiftsWithUsers);
@@ -286,11 +333,27 @@ function displayAdminShifts(shifts) {
         return;
     }
     
+    // 日付ごとにグループ化して承認済み数を計算
+    const approvedCounts = {};
+    shifts.forEach(shift => {
+        if (shift.status === 'approved') {
+            const key = shift.date;
+            approvedCounts[key] = (approvedCounts[key] || 0) + 1;
+        }
+    });
+    
     shifts.forEach(shift => {
         const shiftItem = document.createElement('div');
         shiftItem.className = 'admin-shift-item';
         
         const userName = shift.users?.name || 'ユーザー不明';
+        const key = shift.date;
+        const approvedCount = approvedCounts[key] || 0;
+        const maxCapacity = shift.capacity || 1;
+        
+        // 承認済み数が許容人数に達している場合の警告表示
+        const capacityWarning = approvedCount >= maxCapacity ? 
+            '<span class="capacity-warning">⚠️ 許容人数達成</span>' : '';
         
         shiftItem.innerHTML = `
             <div class="admin-item-info">
@@ -298,6 +361,9 @@ function displayAdminShifts(shifts) {
                 <div class="admin-item-details">
                     ${formatDate(shift.date)} - ${getTimeSlotLabel(shift.time_slot)}
                     <span class="status-${shift.status || 'pending'}">(${getStatusLabel(shift.status || 'pending')})</span>
+                </div>
+                <div class="capacity-info-admin">
+                    ${formatDate(shift.date)}の許容人数: ${approvedCount}/${maxCapacity}人 ${capacityWarning}
                 </div>
                 ${shift.note ? `<div style="font-size: 12px; color: #666; margin-top: 5px;">${shift.note}</div>` : ''}
             </div>
@@ -382,6 +448,8 @@ function switchTab(tabName) {
         loadUserShifts();
     } else if (tabName === 'manage' && isAdmin) {
         loadAdminData();
+    } else if (tabName === 'settings' && isAdmin) {
+        loadCapacityCalendar();
     }
 }
 
@@ -535,17 +603,214 @@ function addWeekdaysToDropdown(selectElement, year, month, startDay) {
         const date = new Date(year, month, day);
         const dayOfWeek = date.getDay();
         
-        // 土日を除外
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-            const option = document.createElement('option');
-            const dateValue = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            option.value = dateValue;
-            
-            const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
-            option.textContent = `${monthNames[month]}${day}日 (${weekDays[dayOfWeek]})`;
-            
-            selectElement.appendChild(option);
+        const option = document.createElement('option');
+        const dateValue = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        option.value = dateValue;
+        
+        const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+        const dayLabel = weekDays[dayOfWeek];
+        const weekendMark = (dayOfWeek === 0 || dayOfWeek === 6) ? ' 🔴' : '';
+        option.textContent = `${monthNames[month]}${day}日 (${dayLabel})${weekendMark}`;
+        
+        selectElement.appendChild(option);
+    }
+}
+
+// 許容人数カレンダーの処理
+async function loadCapacityCalendar() {
+    try {
+        // 既存の許容人数設定を取得
+        const { data: existingCapacities, error } = await supabase
+            .from('shift_capacity')
+            .select('*')
+            .order('date', { ascending: true });
+        
+        if (error) throw error;
+        
+        // 既存設定をマップに変換
+        const capacityMap = {};
+        (existingCapacities || []).forEach(capacity => {
+            capacityMap[capacity.date] = capacity.max_capacity;
+        });
+        
+        displayCapacityCalendar(capacityMap);
+    } catch (error) {
+        console.error('許容人数設定の読み込みに失敗しました:', error);
+    }
+}
+
+function displayCapacityCalendar(capacityMap) {
+    const capacityCalendar = document.getElementById('capacityCalendar');
+    capacityCalendar.innerHTML = '';
+    
+    const today = new Date();
+    const oneMonthFromNow = new Date(today);
+    oneMonthFromNow.setMonth(today.getMonth() + 1);
+    
+    // 月別にグループ化
+    const monthsData = [];
+    const currentMonth = today.getMonth();
+    const nextMonth = (currentMonth + 1) % 12;
+    
+    // 今月と来月の情報を取得
+    const thisYear = today.getFullYear();
+    const nextYear = nextMonth === 0 ? thisYear + 1 : thisYear;
+    
+    monthsData.push({
+        year: thisYear,
+        month: currentMonth,
+        startDate: new Date(today),
+        endDate: new Date(thisYear, currentMonth + 1, 0)
+    });
+    
+    if (nextMonth !== currentMonth) {
+        monthsData.push({
+            year: nextYear,
+            month: nextMonth,
+            startDate: new Date(nextYear, nextMonth, 1),
+            endDate: new Date(oneMonthFromNow)
+        });
+    }
+    
+    monthsData.forEach(monthData => {
+        const monthContainer = document.createElement('div');
+        monthContainer.className = 'calendar-month';
+        
+        const monthHeader = document.createElement('div');
+        monthHeader.className = 'calendar-month-header';
+        monthHeader.innerHTML = `${monthData.year}年 ${monthData.month + 1}月`;
+        monthContainer.appendChild(monthHeader);
+        
+        const calendarGrid = document.createElement('div');
+        calendarGrid.className = 'calendar-grid';
+        
+        // 曜日ヘッダー
+        const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+        weekdays.forEach(day => {
+            const dayHeader = document.createElement('div');
+            dayHeader.className = 'calendar-day-header';
+            dayHeader.textContent = day;
+            calendarGrid.appendChild(dayHeader);
+        });
+        
+        // 月の最初の日の曜日を取得（月曜日を0とする）
+        const firstDay = new Date(monthData.year, monthData.month, 1);
+        const firstDayOfWeek = (firstDay.getDay() + 6) % 7; // 日曜日を6、月曜日を0に変換
+        
+        // 最初の週の空セルを追加
+        for (let i = 0; i < firstDayOfWeek; i++) {
+            const emptyCell = document.createElement('div');
+            emptyCell.className = 'calendar-empty-cell';
+            calendarGrid.appendChild(emptyCell);
         }
+        
+        // 日付セルを追加
+        const maxDate = monthData.endDate.getDate();
+        const startDate = monthData.startDate.getDate();
+        
+        for (let day = 1; day <= maxDate; day++) {
+            const currentDate = new Date(monthData.year, monthData.month, day);
+            const dayOfWeek = currentDate.getDay();
+            
+            // 過去の日付をスキップ
+            if (currentDate < today) {
+                // 空セルを追加
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'calendar-empty-cell';
+                calendarGrid.appendChild(emptyCell);
+                continue;
+            }
+            
+            const dateStr = currentDate.toISOString().split('T')[0];
+            // 土日は0人、平日は1人をデフォルトに
+            const defaultCapacity = (dayOfWeek === 0 || dayOfWeek === 6) ? 0 : 1;
+            const currentCapacity = capacityMap[dateStr] !== undefined ? capacityMap[dateStr] : defaultCapacity;
+            
+            const dateCell = document.createElement('div');
+            dateCell.className = `calendar-date-cell ${dayOfWeek === 0 || dayOfWeek === 6 ? 'weekend' : 'weekday'}`;
+            dateCell.innerHTML = `
+                <div class="calendar-date-number">${day}</div>
+                <div class="calendar-capacity-input">
+                    <input 
+                        type="number" 
+                        id="capacity_${dateStr}" 
+                        class="capacity-input" 
+                        min="0" 
+                        max="10" 
+                        value="${currentCapacity}"
+                        data-date="${dateStr}"
+                        title="許容人数"
+                    >
+                    <span class="capacity-unit">人</span>
+                </div>
+            `;
+            
+            calendarGrid.appendChild(dateCell);
+        }
+        
+        monthContainer.appendChild(calendarGrid);
+        capacityCalendar.appendChild(monthContainer);
+    });
+}
+
+function getDayOfWeekLabel(dayOfWeek) {
+    const labels = ['日', '月', '火', '水', '木', '金', '土'];
+    return labels[dayOfWeek];
+}
+
+async function saveAllCapacities() {
+    const inputs = document.querySelectorAll('.capacity-input');
+    const updates = [];
+    
+    inputs.forEach(input => {
+        const date = input.dataset.date;
+        const capacity = parseInt(input.value);
+        
+        if (capacity >= 0) {
+            updates.push({
+                date: date,
+                max_capacity: capacity
+            });
+        }
+    });
+    
+    if (updates.length === 0) {
+        alert('保存する設定がありません');
+        return;
+    }
+    
+    try {
+        // 各日付について個別に処理
+        for (const update of updates) {
+            // 既存のレコードを確認
+            const { data: existing } = await supabase
+                .from('shift_capacity')
+                .select('id')
+                .eq('date', update.date)
+                .single();
+            
+            if (existing) {
+                // 既存のレコードを更新
+                const { error } = await supabase
+                    .from('shift_capacity')
+                    .update({ max_capacity: update.max_capacity })
+                    .eq('date', update.date);
+                
+                if (error) throw error;
+            } else {
+                // 新しいレコードを挿入
+                const { error } = await supabase
+                    .from('shift_capacity')
+                    .insert(update);
+                
+                if (error) throw error;
+            }
+        }
+        
+        alert(`${updates.length}件の許容人数設定を保存しました`);
+        loadCapacityCalendar(); // 再読み込み
+    } catch (error) {
+        alert('設定の保存に失敗しました: ' + error.message);
     }
 }
 
