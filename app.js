@@ -63,7 +63,13 @@ function showProfile(profileData) {
 }
 
 async function saveShiftToSpreadsheet(shiftData) {
+    const submitBtn = document.querySelector('.submit-btn');
+    const originalText = submitBtn.textContent;
+    
     try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '登録中...';
+        
         await fetch(GOOGLE_APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {
@@ -87,6 +93,9 @@ async function saveShiftToSpreadsheet(shiftData) {
     } catch (error) {
         console.error('シフトの保存に失敗しました:', error);
         alert('シフトの登録に失敗しました。再度お試しください。');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
 }
 
