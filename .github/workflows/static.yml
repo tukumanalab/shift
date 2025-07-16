@@ -34,12 +34,10 @@ jobs:
       
       - name: Create config.js from secrets
         run: |
-          cat > config.js << 'EOF'
-          const config = {
-              GOOGLE_APPS_SCRIPT_URL: '${{ secrets.SHIFT_GOOGLE_APPS_SCRIPT_URL }}',
-              GOOGLE_CLIENT_ID: '${{ secrets.SHIFT_GOOGLE_CLIENT_ID }}'
-          };
-          EOF
+          echo "const config = {" > config.js
+          echo "    GOOGLE_APPS_SCRIPT_URL: '${{ secrets.SHIFT_GOOGLE_APPS_SCRIPT_URL }}'," >> config.js
+          echo "    GOOGLE_CLIENT_ID: '${{ secrets.SHIFT_GOOGLE_CLIENT_ID }}'" >> config.js
+          echo "};" >> config.js
       
       - name: Setup Pages
         uses: actions/configure-pages@v5
