@@ -32,19 +32,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build with environment variables
-        env:
-          SHIFT_GOOGLE_APPS_SCRIPT_URL: ${{ secrets.SHIFT_GOOGLE_APPS_SCRIPT_URL }}
-          SHIFT_GOOGLE_CLIENT_ID: ${{ secrets.SHIFT_GOOGLE_CLIENT_ID }}
-        run: npm run build
+      - name: Create config.js from secrets
+        run: |
+          cat > config.js << 'EOF'
+          const config = {
+              GOOGLE_APPS_SCRIPT_URL: '${{ secrets.SHIFT_GOOGLE_APPS_SCRIPT_URL }}',
+              GOOGLE_CLIENT_ID: '${{ secrets.SHIFT_GOOGLE_CLIENT_ID }}'
+          };
+          EOF
       
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -52,7 +47,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: '.'
       
       - name: Deploy to GitHub Pages
         id: deployment
