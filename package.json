@@ -4,9 +4,9 @@
   "description": "Google Login Shift Management App",
   "main": "index.html",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "python -m http.server 3000",
+    "build": "echo 'No build needed for static files'",
+    "preview": "python -m http.server 3000"
   },
   "devDependencies": {
     "vite": "^5.0.0"
