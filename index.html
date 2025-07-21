@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google ログインアプリ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .login-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            background-color: #f9f9f9;
+        }
+        .profile {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: white;
+        }
+        .profile img {
+            border-radius: 50%;
+            margin-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .google-btn {
+            background-color: #4285f4;
+            color: white;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        .shift-form {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: white;
+            text-align: left;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .submit-btn {
+            background-color: #28a745;
+            color: white;
+            width: 100%;
+        }
+        .submit-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .sync-btn {
+            background-color: #17a2b8;
+            color: white;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .sync-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Google ログインアプリ</h1>
+        
+        <div id="loginSection">
+            <p>Googleアカウントでログインしてください</p>
+            <div id="g_id_onload"
+                 data-client_id=""
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+            
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="outline"
+                 data-text="signin_with"
+                 data-size="large"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+
+        <div id="profileSection" class="hidden">
+            <div class="profile">
+                <img id="userImage" src="" alt="ユーザー画像" width="100" height="100">
+                <h2 id="userName"></h2>
+                <p id="userEmail"></p>
+                <button class="logout-btn" onclick="signOut()">ログアウト</button>
+            </div>
+            
+            <div class="shift-form">
+                <h3>シフト登録</h3>
+                <form id="shiftForm">
+                    <div class="form-group">
+                        <label for="shiftDate">日付:</label>
+                        <input type="date" id="shiftDate" name="shiftDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="shiftTime">時間帯:</label>
+                        <select id="shiftTime" name="shiftTime" required>
+                            <option value="">選択してください</option>
+                            <option value="早朝 (6:00-9:00)">早朝 (6:00-9:00)</option>
+                            <option value="午前 (9:00-12:00)">午前 (9:00-12:00)</option>
+                            <option value="午後 (12:00-15:00)">午後 (12:00-15:00)</option>
+                            <option value="夕方 (15:00-18:00)">夕方 (15:00-18:00)</option>
+                            <option value="夜間 (18:00-21:00)">夜間 (18:00-21:00)</option>
+                            <option value="深夜 (21:00-24:00)">深夜 (21:00-24:00)</option>
+                            <option value="終日 (9:00-18:00)">終日 (9:00-18:00)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="shiftContent">予定の内容:</label>
+                        <textarea id="shiftContent" name="shiftContent" placeholder="作業内容や備考を入力してください" required></textarea>
+                    </div>
+                    
+                    <button type="submit" class="submit-btn">シフトを登録</button>
+                </form>
+                
+                <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
+                    すべてのシフトをカレンダーに同期
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
