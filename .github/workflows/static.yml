@@ -36,10 +36,12 @@ jobs:
         env:
           SHIFT_GOOGLE_APPS_SCRIPT_URL: ${{ secrets.SHIFT_GOOGLE_APPS_SCRIPT_URL }}
           SHIFT_GOOGLE_CLIENT_ID: ${{ secrets.SHIFT_GOOGLE_CLIENT_ID }}
+          SHIFT_AUTHORIZED_EMAILS: ${{ vars.SHIFT_AUTHORIZED_EMAILS }}
         run: |
           echo "const config = {" > config.js
           echo "    GOOGLE_APPS_SCRIPT_URL: '${SHIFT_GOOGLE_APPS_SCRIPT_URL}'," >> config.js
-          echo "    GOOGLE_CLIENT_ID: '${SHIFT_GOOGLE_CLIENT_ID}'" >> config.js
+          echo "    GOOGLE_CLIENT_ID: '${SHIFT_GOOGLE_CLIENT_ID}'," >> config.js
+          echo "    AUTHORIZED_EMAILS: '${SHIFT_AUTHORIZED_EMAILS}'" >> config.js
           echo "};" >> config.js
       
       - name: Setup Pages
