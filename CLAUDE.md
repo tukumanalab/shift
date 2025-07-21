@@ -12,17 +12,20 @@ This is a simple Japanese Google Login web application demonstrating OAuth2 auth
 Start a local development server using one of these commands:
 
 ```bash
-# Python 3 (recommended)
-python -m http.server 3000
+# npm (recommended)
+npm run dev
 
-# Node.js (if npx serve is available)
-npx serve -p 3000
+# Node.js with http-server
+npx http-server
+
+# Python 3
+python -m http.server 3000
 
 # PHP (if available)
 php -S localhost:3000
 ```
 
-Access the application at `http://localhost:3000`
+Access the application at `http://localhost:8080` (default http-server port)
 
 ### File Serving Requirements
 - Must run on localhost or HTTPS (Google OAuth requirement)
