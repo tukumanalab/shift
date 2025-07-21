@@ -1,12 +1,12 @@
 {
   "name": "shift-app",
   "version": "1.0.0",
-  "description": "Google Login Shift Management App",
+  "description": "アルバイトシフト管理アプリケーション",
   "main": "index.html",
   "scripts": {
-    "dev": "npx http-server -p 3000",
+    "dev": "npx http-server -p 8081",
     "build": "echo 'No build needed for static files'",
-    "preview": "npx http-server -p 3000"
+    "preview": "npx http-server -p 8081"
   },
   "devDependencies": {
     "vite": "^5.0.0"

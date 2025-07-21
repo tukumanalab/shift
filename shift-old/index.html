@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<<<<<<< HEAD
+    <title>シフト管理アプリ</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>アルバイトシフト管理</h1>
+            <div id="userInfo" class="user-info"></div>
+        </header>
+
+        <div class="login-type-selector">
+            <button class="login-type-btn active" data-type="admin">管理者ログイン</button>
+            <button class="login-type-btn" data-type="user">一般ユーザーログイン</button>
+        </div>
+
+        <!-- 管理者ログイン画面 -->
+        <div id="adminLoginSection" class="login-section admin-section">
+            <h2>管理者ログイン</h2>
+            <form id="adminLoginForm">
+                <input type="email" id="adminEmail" placeholder="メールアドレス" required>
+                <input type="password" id="adminPassword" placeholder="パスワード" required>
+                <button type="submit">ログイン</button>
+            </form>
+            <p>アカウントをお持ちでない方は <a href="#" id="showAdminSignup">新規登録</a></p>
+        </div>
+
+        <div id="adminSignupSection" class="signup-section admin-section" style="display: none;">
+            <h2>管理者新規登録</h2>
+            <form id="adminSignupForm">
+                <input type="text" id="adminSignupName" placeholder="名前" required>
+                <input type="email" id="adminSignupEmail" placeholder="メールアドレス" required>
+                <input type="password" id="adminSignupPassword" placeholder="パスワード" required>
+                <button type="submit">登録</button>
+            </form>
+            <p>既にアカウントをお持ちの方は <a href="#" id="showAdminLogin">ログイン</a></p>
+        </div>
+
+        <!-- 一般ユーザーログイン画面 -->
+        <div id="userLoginSection" class="login-section user-section" style="display: none;">
+            <h2>一般ユーザーログイン</h2>
+            <form id="userLoginForm">
+                <input type="text" id="userName" placeholder="お名前" required>
+                <button type="submit">ログイン</button>
+            </form>
+            <p>アカウントをお持ちでない方は <a href="#" id="showUserSignup">新規登録</a></p>
+        </div>
+
+        <div id="userSignupSection" class="signup-section user-section" style="display: none;">
+            <h2>一般ユーザー新規登録</h2>
+            <form id="userSignupForm">
+                <input type="text" id="userSignupName" placeholder="お名前" required>
+                <button type="submit">登録</button>
+            </form>
+            <p>既にアカウントをお持ちの方は <a href="#" id="showUserLogin">ログイン</a></p>
+        </div>
+
+        <main id="mainContent" style="display: none;">
+            <div class="tabs">
+                <button class="tab-button active" data-tab="shifts">シフト一覧</button>
+                <button class="tab-button" data-tab="request">シフト申請</button>
+                <button class="tab-button" data-tab="manage" id="manageTabButton" style="display: none;">全シフト一覧</button>
+                <button class="tab-button" data-tab="settings" id="settingsTabButton" style="display: none;">人数設定</button>
+            </div>
+
+            <div id="shiftsTab" class="tab-content active">
+                <div class="shift-list-container">
+                    <div class="shift-table-wrapper">
+                        <table class="shift-list-table">
+                            <tbody id="shiftListTableBody">
+                                <!-- 申請されたシフトが動的に生成される -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="requestTab" class="tab-content" style="display: none;">
+                <div class="shift-request-controls">
+                    <button id="submitSelectedShifts" class="submit-shifts-btn" disabled>
+                        選択したシフトを申請する
+                    </button>
+                    <span id="selectedCount" class="selected-count">0件選択中</span>
+                </div>
+                <div class="shift-request-container">
+                    <div class="shift-table-wrapper">
+                        <table class="shift-request-table">
+                            <thead>
+                                <tr>
+                                    <th class="date-column">日付</th>
+                                    <th class="time-slots-column">シフト枠</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shiftRequestTableBody">
+                                <!-- 日付と枠が動的に生成される -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div id="manageTab" class="tab-content" style="display: none;">
+                <div class="google-calendar-section">
+                    <div class="google-calendar-controls">
+                        <div class="google-calendar-status">
+                            <span id="googleCalendarStatus" class="google-calendar-disconnected">Google Calendarに未接続</span>
+                        </div>
+                        <div class="google-calendar-buttons">
+                            <button id="connectGoogleCalendar" class="google-calendar-btn connect">
+                                📅 Google Calendarに接続
+                            </button>
+                            <button id="disconnectGoogleCalendar" class="google-calendar-btn disconnect" style="display: none;">
+                                🔌 Google Calendarから切断
+                            </button>
+                            <button id="syncAllShifts" class="google-calendar-btn sync" style="display: none;">
+                                🔄 全シフトを同期
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-calendar-container">
+                    <div id="adminCalendar"></div>
+                </div>
+            </div>
+
+            <div id="settingsTab" class="tab-content" style="display: none;">
+                <div class="settings-section">
+                    <div class="capacity-calendar">
+                        <div id="capacityCalendar"></div>
+                        <button id="saveAllCapacities" class="save-all-btn">すべての変更を保存</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- シフト申請用モーダル -->
+    <div id="shiftRequestModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>シフト申請の確認</h3>
+            <p id="modalMessage"></p>
+            <div class="modal-form">
+                <label for="shiftNote">備考（任意）:</label>
+                <textarea id="shiftNote" rows="4" placeholder="備考があれば入力してください"></textarea>
+            </div>
+            <div class="modal-buttons">
+                <button id="modalCancel" class="modal-btn cancel">キャンセル</button>
+                <button id="modalSubmit" class="modal-btn submit">申請する</button>
+=======
+    <title>Google ログインアプリ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .login-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            background-color: #f9f9f9;
+        }
+        .profile {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: white;
+        }
+        .profile img {
+            border-radius: 50%;
+            margin-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .google-btn {
+            background-color: #4285f4;
+            color: white;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        .shift-form {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: white;
+            text-align: left;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .submit-btn {
+            background-color: #28a745;
+            color: white;
+            width: 100%;
+        }
+        .sync-btn {
+            background-color: #17a2b8;
+            color: white;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .sync-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Google ログインアプリ</h1>
+        
+        <div id="loginSection">
+            <p>Googleアカウントでログインしてください</p>
+            <div id="g_id_onload"
+                 data-client_id="376763310645-7vvdl9h0gji40a10eb515a1tr0dbap99.apps.googleusercontent.com"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+            
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="outline"
+                 data-text="signin_with"
+                 data-size="large"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+
+        <div id="profileSection" class="hidden">
+            <div class="profile">
+                <img id="userImage" src="" alt="ユーザー画像" width="100" height="100">
+                <h2 id="userName"></h2>
+                <p id="userEmail"></p>
+                <button class="logout-btn" onclick="signOut()">ログアウト</button>
+            </div>
+            
+            <div class="shift-form">
+                <h3>シフト登録</h3>
+                <form id="shiftForm">
+                    <div class="form-group">
+                        <label for="shiftDate">日付:</label>
+                        <input type="date" id="shiftDate" name="shiftDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="shiftTime">時間帯:</label>
+                        <select id="shiftTime" name="shiftTime" required>
+                            <option value="">選択してください</option>
+                            <option value="早朝 (6:00-9:00)">早朝 (6:00-9:00)</option>
+                            <option value="午前 (9:00-12:00)">午前 (9:00-12:00)</option>
+                            <option value="午後 (12:00-15:00)">午後 (12:00-15:00)</option>
+                            <option value="夕方 (15:00-18:00)">夕方 (15:00-18:00)</option>
+                            <option value="夜間 (18:00-21:00)">夜間 (18:00-21:00)</option>
+                            <option value="深夜 (21:00-24:00)">深夜 (21:00-24:00)</option>
+                            <option value="終日 (9:00-18:00)">終日 (9:00-18:00)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="shiftContent">予定の内容:</label>
+                        <textarea id="shiftContent" name="shiftContent" placeholder="作業内容や備考を入力してください" required></textarea>
+                    </div>
+                    
+                    <button type="submit" class="submit-btn">シフトを登録</button>
+                </form>
+                
+                <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
+                    すべてのシフトをカレンダーに同期
+                </button>
+>>>>>>> 08de2fdd5bc8c9e83e539f7e0cad5cca66794954
+            </div>
+        </div>
+    </div>
+
+<<<<<<< HEAD
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/google-calendar.js"></script>
+    <script src="js/app.js?v=6"></script>
+    <script async defer src="https://apis.google.com/js/api.js" onload="handleClientLoad()"></script>
+=======
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="app.js"></script>
+>>>>>>> 08de2fdd5bc8c9e83e539f7e0cad5cca66794954
+</body>
+</html>

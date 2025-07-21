@@ -1,5 +1,6 @@
 const GOOGLE_APPS_SCRIPT_URL = config.GOOGLE_APPS_SCRIPT_URL;
 const GOOGLE_CLIENT_ID = config.GOOGLE_CLIENT_ID;
+const AUTHORIZED_EMAILS = config.AUTHORIZED_EMAILS.split(',').map(email => email.trim());
 
 let currentUser = null;
 
@@ -12,6 +13,13 @@ function handleCredentialResponse(response) {
     console.log('Family Name: ' + responsePayload.family_name);
     console.log("Image URL: " + responsePayload.picture);
     console.log("Email: " + responsePayload.email);
+
+    // Check if email is authorized
+    if (!AUTHORIZED_EMAILS.includes(responsePayload.email)) {
+        alert('アクセスが拒否されました。\nこのアプリケーションは許可されたユーザーのみ利用可能です。');
+        signOut();
+        return;
+    }
 
     saveLoginToSpreadsheet(responsePayload);
     showProfile(responsePayload);
@@ -52,73 +60,19 @@ async function saveLoginToSpreadsheet(profileData) {
 function showProfile(profileData) {
     currentUser = profileData;
     
-    document.getElementById('loginSection').classList.add('hidden');
-    document.getElementById('profileSection').classList.remove('hidden');
+    document.getElementById('loginButton').classList.add('hidden');
+    document.getElementById('profileInfo').classList.remove('hidden');
+    document.getElementById('loginPrompt').classList.add('hidden');
+    document.getElementById('appContent').classList.remove('hidden');
     
     document.getElementById('userImage').src = profileData.picture;
     document.getElementById('userName').textContent = profileData.name;
     document.getElementById('userEmail').textContent = profileData.email;
     
-    setupShiftForm();
+    loadShiftList();
 }
 
-async function saveShiftToSpreadsheet(shiftData) {
-    const submitBtn = document.querySelector('.submit-btn');
-    const originalText = submitBtn.textContent;
-    
-    try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = '登録中...';
-        
-        await fetch(GOOGLE_APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            mode: 'no-cors',
-            body: JSON.stringify({
-                type: 'shift',
-                userId: currentUser.sub,
-                userName: currentUser.name,
-                userEmail: currentUser.email,
-                date: shiftData.date,
-                time: shiftData.time,
-                content: shiftData.content
-            })
-        });
-        
-        console.log('シフト情報をスプレッドシートに保存しました');
-        alert('シフトが正常に登録されました！');
-        document.getElementById('shiftForm').reset();
-    } catch (error) {
-        console.error('シフトの保存に失敗しました:', error);
-        alert('シフトの登録に失敗しました。再度お試しください。');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
-    }
-}
 
-function setupShiftForm() {
-    const form = document.getElementById('shiftForm');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(form);
-        const shiftData = {
-            date: formData.get('shiftDate'),
-            time: formData.get('shiftTime'),
-            content: formData.get('shiftContent')
-        };
-        
-        if (!shiftData.date || !shiftData.time || !shiftData.content.trim()) {
-            alert('すべての項目を入力してください。');
-            return;
-        }
-        
-        saveShiftToSpreadsheet(shiftData);
-    });
-}
 
 async function syncAllShiftsToCalendar() {
     if (!currentUser) {
@@ -159,15 +113,56 @@ function signOut() {
     google.accounts.id.disableAutoSelect();
     
     currentUser = null;
-    document.getElementById('loginSection').classList.remove('hidden');
-    document.getElementById('profileSection').classList.add('hidden');
+    document.getElementById('loginButton').classList.remove('hidden');
+    document.getElementById('profileInfo').classList.add('hidden');
+    document.getElementById('loginPrompt').classList.remove('hidden');
+    document.getElementById('appContent').classList.add('hidden');
     
     document.getElementById('userImage').src = '';
     document.getElementById('userName').textContent = '';
     document.getElementById('userEmail').textContent = '';
-    document.getElementById('shiftForm').reset();
     
     console.log('ユーザーがログアウトしました');
+}
+
+function setupTabSwitching() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetTab = button.getAttribute('data-tab');
+
+            // Remove active class from all buttons and contents
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            // Add active class to clicked button and corresponding content
+            button.classList.add('active');
+            document.getElementById(targetTab).classList.add('active');
+        });
+    });
+}
+
+function loadShiftList() {
+    // TODO: Implement shift list loading from Google Sheets
+    console.log('Loading shift list...');
+}
+
+function saveCapacitySettings() {
+    const capacities = {
+        morning: document.getElementById('morning-capacity').value,
+        am: document.getElementById('am-capacity').value,
+        pm: document.getElementById('pm-capacity').value,
+        evening: document.getElementById('evening-capacity').value,
+        night: document.getElementById('night-capacity').value,
+        late: document.getElementById('late-capacity').value,
+        fullday: document.getElementById('fullday-capacity').value
+    };
+    
+    // TODO: Save capacity settings to Google Sheets
+    console.log('Saving capacity settings:', capacities);
+    alert('人数設定を保存しました！');
 }
 
 window.onload = function () {
@@ -180,6 +175,8 @@ window.onload = function () {
     
     google.accounts.id.renderButton(
         document.querySelector('.g_id_signin'),
-        { theme: 'outline', size: 'large' }
+        { theme: 'outline', size: 'medium' }
     );
+    
+    setupTabSwitching();
 };

@@ -3,31 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google ログインアプリ</title>
+    <title>アルバイトシフト管理</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
+            max-width: 800px;
+            margin: 0 auto;
             padding: 20px;
             text-align: center;
         }
-        .login-container {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 30px;
-            background-color: #f9f9f9;
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
         }
-        .profile {
-            margin-top: 20px;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            background-color: white;
+        .navbar-brand {
+            font-size: 20px;
+            font-weight: bold;
         }
-        .profile img {
+        .navbar-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .navbar-profile img {
+            width: 35px;
+            height: 35px;
             border-radius: 50%;
-            margin-bottom: 10px;
+        }
+        .navbar-profile .user-info {
+            text-align: left;
+        }
+        .navbar-profile .user-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 0;
+            color: white;
+        }
+        .navbar-profile .user-email {
+            font-size: 12px;
+            color: #ccc;
+            margin: 0;
+        }
+        .main-content {
+            margin-top: 60px;
+            padding-top: 10px;
         }
         .hidden {
             display: none;
@@ -43,68 +72,115 @@
         .google-btn {
             background-color: #4285f4;
             color: white;
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .google-btn:hover {
+            background-color: #357ae8;
         }
         .logout-btn {
             background-color: #dc3545;
             color: white;
         }
-        .shift-form {
-            margin-top: 20px;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            background-color: white;
-            text-align: left;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        .form-group textarea {
-            height: 80px;
-            resize: vertical;
-        }
-        .submit-btn {
-            background-color: #28a745;
+        .logout-btn-small {
+            padding: 5px 10px;
+            font-size: 12px;
+            margin: 0;
+            background-color: #dc3545;
             color: white;
-            width: 100%;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
         }
-        .submit-btn:disabled {
-            background-color: #6c757d;
-            cursor: not-allowed;
-            opacity: 0.6;
+        .logout-btn-small:hover {
+            background-color: #c82333;
         }
         .sync-btn {
             background-color: #17a2b8;
             color: white;
-            width: 100%;
-            margin-top: 10px;
+            margin-bottom: 20px;
         }
         .sync-btn:disabled {
             background-color: #6c757d;
             cursor: not-allowed;
         }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+            margin-top: 0;
+        }
+        .tab-button {
+            background-color: #f0f0f0;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            transition: background-color 0.3s;
+        }
+        .tab-button:hover {
+            background-color: #e0e0e0;
+        }
+        .tab-button.active {
+            background-color: #4285f4;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .shift-list-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .shift-list-table th,
+        .shift-list-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .shift-list-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .capacity-setting {
+            margin-bottom: 15px;
+        }
+        .capacity-setting label {
+            display: inline-block;
+            width: 150px;
+            font-weight: bold;
+        }
+        .capacity-setting input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .save-capacity-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <h1>Google ログインアプリ</h1>
-        
-        <div id="loginSection">
-            <p>Googleアカウントでログインしてください</p>
+    <nav class="navbar">
+        <div class="navbar-brand">アルバイトシフト管理</div>
+        <div id="loginButton" class="navbar-profile">
             <div id="g_id_onload"
                  data-client_id=""
                  data-context="signin"
@@ -112,58 +188,88 @@
                  data-callback="handleCredentialResponse"
                  data-auto_prompt="false">
             </div>
-            
             <div class="g_id_signin"
                  data-type="standard"
                  data-shape="rectangular"
                  data-theme="outline"
                  data-text="signin_with"
-                 data-size="large"
-                 data-logo_alignment="left">
+                 data-size="medium">
             </div>
         </div>
-
-        <div id="profileSection" class="hidden">
-            <div class="profile">
-                <img id="userImage" src="" alt="ユーザー画像" width="100" height="100">
-                <h2 id="userName"></h2>
-                <p id="userEmail"></p>
-                <button class="logout-btn" onclick="signOut()">ログアウト</button>
+        <div id="profileInfo" class="navbar-profile hidden">
+            <img id="userImage" src="" alt="ユーザー画像">
+            <div class="user-info">
+                <p class="user-name" id="userName"></p>
+                <p class="user-email" id="userEmail"></p>
             </div>
-            
-            <div class="shift-form">
-                <h3>シフト登録</h3>
-                <form id="shiftForm">
-                    <div class="form-group">
-                        <label for="shiftDate">日付:</label>
-                        <input type="date" id="shiftDate" name="shiftDate" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="shiftTime">時間帯:</label>
-                        <select id="shiftTime" name="shiftTime" required>
-                            <option value="">選択してください</option>
-                            <option value="早朝 (6:00-9:00)">早朝 (6:00-9:00)</option>
-                            <option value="午前 (9:00-12:00)">午前 (9:00-12:00)</option>
-                            <option value="午後 (12:00-15:00)">午後 (12:00-15:00)</option>
-                            <option value="夕方 (15:00-18:00)">夕方 (15:00-18:00)</option>
-                            <option value="夜間 (18:00-21:00)">夜間 (18:00-21:00)</option>
-                            <option value="深夜 (21:00-24:00)">深夜 (21:00-24:00)</option>
-                            <option value="終日 (9:00-18:00)">終日 (9:00-18:00)</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="shiftContent">予定の内容:</label>
-                        <textarea id="shiftContent" name="shiftContent" placeholder="作業内容や備考を入力してください" required></textarea>
-                    </div>
-                    
-                    <button type="submit" class="submit-btn">シフトを登録</button>
-                </form>
-                
+            <button class="logout-btn-small" onclick="signOut()">ログアウト</button>
+        </div>
+    </nav>
+    
+    <div class="main-content">
+        <div id="loginPrompt" style="text-align: center; margin-top: 100px;">
+            <h2>ログインが必要です</h2>
+            <p>右上のボタンからGoogleアカウントでログインしてください。</p>
+        </div>
+        
+        <div id="appContent" class="hidden">
+            <div class="tabs">
+                <button class="tab-button active" data-tab="shift-list">シフト一覧</button>
+                <button class="tab-button" data-tab="capacity-settings">シフト人数設定</button>
+            </div>
+
+            <div id="shift-list" class="tab-content active">
+                <h3>登録済みシフト一覧</h3>
                 <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
                     すべてのシフトをカレンダーに同期
                 </button>
+                <table class="shift-list-table">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            <th>時間帯</th>
+                            <th>内容</th>
+                            <th>登録者</th>
+                            <th>登録日時</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shiftListTableBody">
+                        <!-- シフトデータが動的に挿入されます -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="capacity-settings" class="tab-content">
+                <h3>シフト人数設定</h3>
+                <div class="capacity-setting">
+                    <label for="morning-capacity">早朝 (6:00-9:00):</label>
+                    <input type="number" id="morning-capacity" min="0" value="2"> 人
+                </div>
+                <div class="capacity-setting">
+                    <label for="am-capacity">午前 (9:00-12:00):</label>
+                    <input type="number" id="am-capacity" min="0" value="3"> 人
+                </div>
+                <div class="capacity-setting">
+                    <label for="pm-capacity">午後 (12:00-15:00):</label>
+                    <input type="number" id="pm-capacity" min="0" value="3"> 人
+                </div>
+                <div class="capacity-setting">
+                    <label for="evening-capacity">夕方 (15:00-18:00):</label>
+                    <input type="number" id="evening-capacity" min="0" value="3"> 人
+                </div>
+                <div class="capacity-setting">
+                    <label for="night-capacity">夜間 (18:00-21:00):</label>
+                    <input type="number" id="night-capacity" min="0" value="2"> 人
+                </div>
+                <div class="capacity-setting">
+                    <label for="late-capacity">深夜 (21:00-24:00):</label>
+                    <input type="number" id="late-capacity" min="0" value="1"> 人
+                </div>
+                <div class="capacity-setting">
+                    <label for="fullday-capacity">終日 (9:00-18:00):</label>
+                    <input type="number" id="fullday-capacity" min="0" value="5"> 人
+                </div>
+                <button class="save-capacity-btn" onclick="saveCapacitySettings()">設定を保存</button>
             </div>
         </div>
     </div>

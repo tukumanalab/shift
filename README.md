@@ -1,6 +1,6 @@
-# Google ログインアプリ
+# アルバイトシフト管理
 
-簡単なGoogleログイン機能を持つJavaScriptアプリケーションです。
+Googleログイン機能を使用したアルバイトシフト管理アプリケーションです。
 
 ## セットアップ手順
 
@@ -12,8 +12,8 @@
 4. 「認証情報を作成」→「OAuth 2.0 クライアントID」を選択
 5. アプリケーションの種類で「ウェブアプリケーション」を選択
 6. 承認済みのJavaScript生成元に以下を追加：
-   - `http://localhost:3000`
-   - `http://127.0.0.1:3000`
+   - `http://localhost:8081`
+   - `http://127.0.0.1:8081`
    - その他必要なドメイン
 7. クライアントIDをコピー
 
@@ -26,21 +26,27 @@
 ローカルサーバーを起動してテスト：
 
 ```bash
-# Python 3の場合
-python -m http.server 3000
+# npm (推奨)
+npm run dev
 
-# Node.jsの場合（npx serve をインストール済みの場合）
-npx serve -p 3000
+# Python 3の場合
+python -m http.server 8081
+
+# Node.jsの場合（http-serverを使用）
+npx http-server -p 8081
 
 # PHP（インストール済みの場合）
-php -S localhost:3000
+php -S localhost:8081
 ```
 
-ブラウザで `http://localhost:3000` にアクセス
+ブラウザで `http://localhost:8081` にアクセス
 
 ## 機能
 
-- Googleアカウントでのログイン
+- Googleアカウントでのログイン（指定されたメールアドレスのみ）
+- シフト一覧の表示
+- シフトの登録・管理
+- シフト人数設定
 - ユーザープロフィール表示（名前、メール、プロフィール画像）
 - ログアウト機能
 

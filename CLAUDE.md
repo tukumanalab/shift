@@ -16,20 +16,20 @@ Start a local development server using one of these commands:
 npm run dev
 
 # Node.js with http-server
-npx http-server -p 3000
+npx http-server -p 8081
 
 # Python 3
-python -m http.server 3000
+python -m http.server 8081
 
 # PHP (if available)
-php -S localhost:3000
+php -S localhost:8081
 ```
 
-Access the application at `http://localhost:3000`
+Access the application at `http://localhost:8081`
 
 ### File Serving Requirements
 - Must run on localhost or HTTPS (Google OAuth requirement)
-- Port 3000 is configured in Google Cloud Console settings
+- Port 8081 is configured in Google Cloud Console settings
 
 ## Architecture
 
@@ -49,7 +49,7 @@ Access the application at `http://localhost:3000`
 ### Google OAuth Configuration
 - Client ID is hardcoded in both `index.html` and `app.js`
 - Current client ID: `your_google_client_id_here`
-- Authorized origins configured for localhost:3000 and 127.0.0.1:3000
+- Authorized origins configured for localhost:8081 and 127.0.0.1:8081
 
 ## Key Implementation Details
 
