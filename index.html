@@ -173,7 +173,171 @@
             background-color: #28a745;
             color: white;
             padding: 10px 20px;
+            margin: 10px 0;
+        }
+        .calendar-container {
             margin-top: 20px;
+            overflow-x: auto;
+        }
+        .calendar-month {
+            margin-bottom: 30px;
+        }
+        .calendar-month h4 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .calendar-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .calendar-table th,
+        .calendar-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            width: 14.28%;
+            height: 80px;
+            vertical-align: top;
+            position: relative;
+        }
+        .calendar-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            height: auto;
+            padding: 10px;
+        }
+        .calendar-table td.other-month {
+            color: #ccc;
+            background-color: #f9f9f9;
+        }
+        .calendar-table td.today {
+            background-color: #e3f2fd;
+            font-weight: bold;
+        }
+        .calendar-table td:hover {
+            background-color: #f5f5f5;
+            cursor: pointer;
+        }
+        .calendar-day-number {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .calendar-shift-info {
+            font-size: 12px;
+            color: #666;
+        }
+        .sunday {
+            color: #dc3545;
+        }
+        .saturday {
+            color: #0066cc;
+        }
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 50px;
+            color: #666;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4285f4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 16px;
+        }
+        .capacity-input {
+            width: 40px;
+            padding: 2px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            text-align: center;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .capacity-label {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 2px;
+        }
+        .capacity-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        .capacity-value {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .edit-icon {
+            cursor: pointer;
+            font-size: 12px;
+            color: #4285f4;
+            padding: 2px;
+            border-radius: 3px;
+        }
+        .edit-icon:hover {
+            background-color: #f0f0f0;
+        }
+        .capacity-edit-mode {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        .capacity-input-row {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        .capacity-edit-controls {
+            display: flex;
+            gap: 3px;
+        }
+        .save-single-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            font-size: 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .cancel-edit-btn {
+            background-color: #f8f9fa;
+            color: #495057;
+            border: 1px solid #dee2e6;
+            padding: 2px 6px;
+            font-size: 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .save-single-btn:hover {
+            background-color: #218838;
+        }
+        .cancel-edit-btn:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        .save-single-btn:disabled,
+        .cancel-edit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -223,53 +387,19 @@
                 <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
                     すべてのシフトをカレンダーに同期
                 </button>
-                <table class="shift-list-table">
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>時間帯</th>
-                            <th>内容</th>
-                            <th>登録者</th>
-                            <th>登録日時</th>
-                        </tr>
-                    </thead>
-                    <tbody id="shiftListTableBody">
-                        <!-- シフトデータが動的に挿入されます -->
-                    </tbody>
-                </table>
+                <div id="shiftCalendarContainer" class="calendar-container">
+                    <!-- カレンダーが動的に生成されます -->
+                </div>
             </div>
 
             <div id="capacity-settings" class="tab-content">
-                <h3>シフト人数設定</h3>
-                <div class="capacity-setting">
-                    <label for="morning-capacity">早朝 (6:00-9:00):</label>
-                    <input type="number" id="morning-capacity" min="0" value="2"> 人
+                <div id="capacityLoadingContainer" class="loading-container" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">人数設定を読み込み中...</div>
                 </div>
-                <div class="capacity-setting">
-                    <label for="am-capacity">午前 (9:00-12:00):</label>
-                    <input type="number" id="am-capacity" min="0" value="3"> 人
+                <div id="capacityCalendarContainer" class="calendar-container">
+                    <!-- カレンダーが動的に生成されます -->
                 </div>
-                <div class="capacity-setting">
-                    <label for="pm-capacity">午後 (12:00-15:00):</label>
-                    <input type="number" id="pm-capacity" min="0" value="3"> 人
-                </div>
-                <div class="capacity-setting">
-                    <label for="evening-capacity">夕方 (15:00-18:00):</label>
-                    <input type="number" id="evening-capacity" min="0" value="3"> 人
-                </div>
-                <div class="capacity-setting">
-                    <label for="night-capacity">夜間 (18:00-21:00):</label>
-                    <input type="number" id="night-capacity" min="0" value="2"> 人
-                </div>
-                <div class="capacity-setting">
-                    <label for="late-capacity">深夜 (21:00-24:00):</label>
-                    <input type="number" id="late-capacity" min="0" value="1"> 人
-                </div>
-                <div class="capacity-setting">
-                    <label for="fullday-capacity">終日 (9:00-18:00):</label>
-                    <input type="number" id="fullday-capacity" min="0" value="5"> 人
-                </div>
-                <button class="save-capacity-btn" onclick="saveCapacitySettings()">設定を保存</button>
             </div>
         </div>
     </div>
