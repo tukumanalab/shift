@@ -456,11 +456,11 @@ function loadUserShifts(spreadsheet, userId) {
       };
     }).filter(item => item.shiftDate !== ''); // 有効な日付のみ
     
-    // 日付でソート（新しい順）
+    // 日付でソート（古い順）
     userShifts.sort((a, b) => {
       const dateA = new Date(a.shiftDate);
       const dateB = new Date(b.shiftDate);
-      return dateB - dateA;
+      return dateA - dateB;
     });
     
     Logger.log(`${userShifts.length}件のユーザーシフトを読み込みました`);
