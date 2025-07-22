@@ -3,6 +3,7 @@ const GOOGLE_CLIENT_ID = config.GOOGLE_CLIENT_ID;
 const AUTHORIZED_EMAILS = config.AUTHORIZED_EMAILS.split(',').map(email => email.trim());
 
 let currentUser = null;
+let isAdminUser = false;
 
 function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
@@ -14,13 +15,9 @@ function handleCredentialResponse(response) {
     console.log("Image URL: " + responsePayload.picture);
     console.log("Email: " + responsePayload.email);
 
-    // Check if email is authorized
-    if (!AUTHORIZED_EMAILS.includes(responsePayload.email)) {
-        alert('アクセスが拒否されました。\nこのアプリケーションは許可されたユーザーのみ利用可能です。');
-        signOut();
-        return;
-    }
-
+    // Check if email is authorized admin
+    isAdminUser = AUTHORIZED_EMAILS.includes(responsePayload.email);
+    
     showProfile(responsePayload);
 }
 
@@ -47,7 +44,15 @@ function showProfile(profileData) {
     document.getElementById('userName').textContent = profileData.name;
     document.getElementById('userEmail').textContent = profileData.email;
     
-    loadShiftList();
+    // タブの表示制御
+    updateTabVisibility();
+    
+    // 初期ロード
+    if (isAdminUser) {
+        loadShiftList();
+    } else {
+        loadMyShifts();
+    }
 }
 
 
@@ -91,6 +96,7 @@ function signOut() {
     google.accounts.id.disableAutoSelect();
     
     currentUser = null;
+    isAdminUser = false;
     document.getElementById('loginButton').classList.remove('hidden');
     document.getElementById('profileInfo').classList.add('hidden');
     document.getElementById('loginPrompt').classList.remove('hidden');
@@ -122,6 +128,10 @@ function setupTabSwitching() {
             // Load data for the selected tab
             if (targetTab === 'capacity-settings') {
                 loadCapacitySettings();
+            } else if (targetTab === 'my-shifts') {
+                loadMyShifts();
+            } else if (targetTab === 'shift-request') {
+                loadShiftRequestForm();
             }
         });
     });
@@ -609,6 +619,56 @@ async function saveCapacityToSpreadsheet(capacityData) {
     } catch (error) {
         console.error('スプレッドシートへの保存に失敗しました:', error);
         throw error;
+    }
+}
+
+function updateTabVisibility() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const adminTabs = ['shift-list', 'capacity-settings'];
+    const userTabs = ['my-shifts', 'shift-request'];
+    
+    tabButtons.forEach(button => {
+        const tabId = button.getAttribute('data-tab');
+        
+        if (isAdminUser) {
+            // 管理者は管理者用タブのみ表示
+            if (adminTabs.includes(tabId)) {
+                button.style.display = 'inline-block';
+            } else {
+                button.style.display = 'none';
+            }
+        } else {
+            // 一般ユーザーは一般ユーザー用タブのみ表示
+            if (userTabs.includes(tabId)) {
+                button.style.display = 'inline-block';
+            } else {
+                button.style.display = 'none';
+            }
+        }
+    });
+    
+    // 最初に表示するタブを選択
+    const visibleButtons = Array.from(tabButtons).filter(btn => btn.style.display !== 'none');
+    if (visibleButtons.length > 0) {
+        visibleButtons[0].click();
+    }
+}
+
+function loadMyShifts() {
+    console.log('自分のシフト一覧を読み込み中...');
+    const container = document.getElementById('myShiftsContent');
+    if (container) {
+        container.innerHTML = '<p>自分のシフト一覧を読み込み中...</p>';
+        // TODO: 自分のシフト一覧を実装
+    }
+}
+
+function loadShiftRequestForm() {
+    console.log('シフト申請フォームを読み込み中...');
+    const container = document.getElementById('shiftRequestContent');
+    if (container) {
+        container.innerHTML = '<p>シフト申請フォームを読み込み中...</p>';
+        // TODO: シフト申請フォームを実装
     }
 }
 

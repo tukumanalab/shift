@@ -380,6 +380,8 @@
             <div class="tabs">
                 <button class="tab-button active" data-tab="shift-list">シフト一覧</button>
                 <button class="tab-button" data-tab="capacity-settings">シフト人数設定</button>
+                <button class="tab-button" data-tab="my-shifts">自分のシフト一覧</button>
+                <button class="tab-button" data-tab="shift-request">シフト申請</button>
             </div>
 
             <div id="shift-list" class="tab-content active">
@@ -399,6 +401,20 @@
                 </div>
                 <div id="capacityCalendarContainer" class="calendar-container">
                     <!-- カレンダーが動的に生成されます -->
+                </div>
+            </div>
+
+            <div id="my-shifts" class="tab-content">
+                <h3>自分のシフト一覧</h3>
+                <div id="myShiftsContent">
+                    <!-- 自分のシフト一覧が動的に生成されます -->
+                </div>
+            </div>
+
+            <div id="shift-request" class="tab-content">
+                <h3>シフト申請</h3>
+                <div id="shiftRequestContent">
+                    <!-- シフト申請フォームが動的に生成されます -->
                 </div>
             </div>
         </div>
