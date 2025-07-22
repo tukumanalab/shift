@@ -16,6 +16,15 @@ function doGet(e) {
       return ContentService
         .createTextOutput(JSON.stringify({success: true, data: capacityData}))
         .setMimeType(ContentService.MimeType.JSON);
+        
+    } else if (params.type === 'loadMyShifts' && params.userId) {
+      // ユーザーのシフトデータの読み込み
+      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const shiftsData = loadUserShifts(spreadsheet, params.userId);
+      
+      return ContentService
+        .createTextOutput(JSON.stringify({success: true, data: shiftsData}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     return ContentService
@@ -71,39 +80,12 @@ function doPost(e) {
       // 全シフトデータの同期
       syncAllShiftsToCalendar();
       
-    } else {
+    } else if (data.type === 'saveUser') {
       // ユーザーログインデータの処理
-      const userSheet = spreadsheet.getSheetByName('ユーザー');
+      saveUserData(spreadsheet, data);
       
-      if (!userSheet) {
-        throw new Error('「ユーザー」シートが見つかりません');
-      }
-      
-      // ユーザーIDが空の場合は追加しない
-      if (!data.sub) {
-        throw new Error('ユーザーIDが空です');
-      }
-      
-      // 既存のユーザーIDをチェック
-      const existingData = userSheet.getDataRange().getValues();
-      const existingUserIds = existingData.slice(1).map(row => row[1]); // B列のユーザーID
-      
-      // ユーザーIDが既に存在する場合は追加しない
-      if (existingUserIds.includes(data.sub)) {
-        Logger.log('既存のユーザーです: ' + data.sub);
-        return ContentService
-          .createTextOutput(JSON.stringify({success: true, message: '既存のユーザーです'}))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-      
-      // 新しいユーザーデータを追加
-      userSheet.appendRow([
-        new Date(),
-        data.sub,
-        data.name,
-        data.email,
-        data.picture
-      ]);
+    } else {
+      throw new Error('不明なリクエストタイプ: ' + data.type);
     }
     
     return ContentService
@@ -369,6 +351,124 @@ function updateCapacityData(capacitySheet, capacityData) {
   } catch (error) {
     Logger.log('人数設定の更新に失敗しました: ' + error.toString());
     throw error;
+  }
+}
+
+function saveUserData(spreadsheet, userData) {
+  try {
+    // 「ユーザー」シートを取得または作成
+    let userSheet = spreadsheet.getSheetByName('ユーザー');
+    
+    if (!userSheet) {
+      // シートが存在しない場合は作成
+      userSheet = spreadsheet.insertSheet('ユーザー');
+      
+      // ヘッダー行を追加
+      userSheet.appendRow([
+        'タイムスタンプ',
+        'ユーザーID',
+        '名前',
+        'メールアドレス',
+        'プロフィール画像URL'
+      ]);
+    }
+    
+    // ユーザーIDが空の場合は追加しない
+    if (!userData.sub) {
+      Logger.log('ユーザーIDが空です');
+      return;
+    }
+    
+    // 既存のユーザーIDをチェック
+    const existingData = userSheet.getDataRange().getValues();
+    
+    if (existingData.length > 1) {
+      const existingUserIds = existingData.slice(1).map(row => row[1]); // B列のユーザーID
+      
+      // ユーザーIDが既に存在する場合は追加しない
+      if (existingUserIds.includes(userData.sub)) {
+        Logger.log('既存のユーザーです: ' + userData.sub);
+        return;
+      }
+    }
+    
+    // 新しいユーザーデータを追加
+    userSheet.appendRow([
+      new Date(),
+      userData.sub,
+      userData.name,
+      userData.email,
+      userData.picture
+    ]);
+    
+    Logger.log('新規ユーザーを登録しました: ' + userData.email);
+    
+  } catch (error) {
+    Logger.log('ユーザーデータの保存に失敗しました: ' + error.toString());
+    throw error;
+  }
+}
+
+function loadUserShifts(spreadsheet, userId) {
+  try {
+    // 「シフト」シートを取得
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    
+    if (!shiftSheet) {
+      Logger.log('「シフト」シートが見つかりません');
+      return [];
+    }
+    
+    // データを取得（ヘッダー行を除く）
+    const data = shiftSheet.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      Logger.log('シフトデータがありません');
+      return [];
+    }
+    
+    // ユーザーのシフトデータをフィルタリング
+    const userShifts = data.slice(1).filter(row => {
+      return row.length >= 7 && row[1] === userId; // B列のユーザーIDでフィルタ
+    }).map(row => {
+      let dateStr = '';
+      try {
+        // 日付の形式を統一
+        const dateValue = row[4]; // E列のシフト日付
+        if (dateValue instanceof Date) {
+          dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (typeof dateValue === 'string') {
+          dateStr = dateValue;
+        }
+      } catch (e) {
+        Logger.log('日付の変換に失敗しました: ' + e.toString());
+        dateStr = '';
+      }
+      
+      return {
+        registrationDate: row[0], // A列: 登録日時
+        userId: row[1],          // B列: ユーザーID
+        userName: row[2],        // C列: ユーザー名
+        userEmail: row[3],       // D列: メールアドレス
+        shiftDate: dateStr,      // E列: シフト日付
+        timeSlot: row[5],        // F列: 時間帯
+        content: row[6]          // G列: 予定内容
+      };
+    }).filter(item => item.shiftDate !== ''); // 有効な日付のみ
+    
+    // 日付でソート（新しい順）
+    userShifts.sort((a, b) => {
+      const dateA = new Date(a.shiftDate);
+      const dateB = new Date(b.shiftDate);
+      return dateB - dateA;
+    });
+    
+    Logger.log(`${userShifts.length}件のユーザーシフトを読み込みました`);
+    return userShifts;
+    
+  } catch (error) {
+    Logger.log('ユーザーシフトの読み込みに失敗しました: ' + error.toString());
+    return [];
   }
 }
 

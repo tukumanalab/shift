@@ -32,7 +32,7 @@ function decodeJwtResponse(token) {
 }
 
 
-function showProfile(profileData) {
+async function showProfile(profileData) {
     currentUser = profileData;
     
     document.getElementById('loginButton').classList.add('hidden');
@@ -43,6 +43,11 @@ function showProfile(profileData) {
     document.getElementById('userImage').src = profileData.picture;
     document.getElementById('userName').textContent = profileData.name;
     document.getElementById('userEmail').textContent = profileData.email;
+    
+    // 一般ユーザーの場合、ユーザー情報をスプレッドシートに保存
+    if (!isAdminUser) {
+        await saveUserToSpreadsheet(profileData);
+    }
     
     // タブの表示制御
     updateTabVisibility();
@@ -143,7 +148,7 @@ function loadShiftList() {
     generateCalendar('shiftCalendarContainer');
 }
 
-function generateCalendar(containerId, isCapacityMode = false) {
+function generateCalendar(containerId, isCapacityMode = false, isRequestMode = false) {
     const container = document.getElementById(containerId);
     if (!container) return;
     
@@ -165,13 +170,13 @@ function generateCalendar(containerId, isCapacityMode = false) {
     let currentDate = new Date(startDate);
     
     while (currentDate <= endDate) {
-        const monthDiv = createMonthCalendar(currentDate.getFullYear(), currentDate.getMonth(), isCapacityMode);
+        const monthDiv = createMonthCalendar(currentDate.getFullYear(), currentDate.getMonth(), isCapacityMode, isRequestMode);
         container.appendChild(monthDiv);
         currentDate.setMonth(currentDate.getMonth() + 1);
     }
 }
 
-function createMonthCalendar(year, month, isCapacityMode = false) {
+function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode = false) {
     const monthDiv = document.createElement('div');
     monthDiv.className = 'calendar-month';
     
@@ -307,6 +312,37 @@ function createMonthCalendar(year, month, isCapacityMode = false) {
                     
                     editMode.appendChild(controls);
                     cell.appendChild(editMode);
+                } else if (isRequestMode) {
+                    // シフト申請モードの場合は人数表示
+                    const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                    
+                    const requestInfo = document.createElement('div');
+                    requestInfo.className = 'shift-request-info';
+                    requestInfo.id = `request-${dateKey}`;
+                    
+                    // 必要人数表示
+                    const capacityInfo = document.createElement('div');
+                    capacityInfo.className = 'shift-capacity-info';
+                    capacityInfo.id = `capacity-${dateKey}`;
+                    capacityInfo.innerHTML = `<span class="capacity-number">${getDefaultCapacity(dayOfWeek)}</span><span class="capacity-unit">人</span>`;
+                    requestInfo.appendChild(capacityInfo);
+                    
+                    // 申請ボタン（0人の日は無効化）
+                    const applyBtn = document.createElement('button');
+                    applyBtn.className = 'shift-apply-btn';
+                    applyBtn.textContent = '申請';
+                    applyBtn.onclick = () => applyForShift(dateKey, currentDate);
+                    
+                    // 0人の日は申請不可
+                    if (getDefaultCapacity(dayOfWeek) === 0) {
+                        applyBtn.disabled = true;
+                        applyBtn.title = 'この日はシフト募集がありません';
+                    }
+                    
+                    requestInfo.appendChild(applyBtn);
+                    
+                    cell.appendChild(requestInfo);
+                    cell.setAttribute('data-date', dateKey);
                 } else {
                     // シフト一覧モードの場合はシフト情報表示用のエリア
                     const shiftInfo = document.createElement('div');
@@ -624,8 +660,18 @@ async function saveCapacityToSpreadsheet(capacityData) {
 
 function updateTabVisibility() {
     const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
     const adminTabs = ['shift-list', 'capacity-settings'];
     const userTabs = ['my-shifts', 'shift-request'];
+    
+    // まず全てのタブボタンとコンテンツをリセット
+    tabButtons.forEach(button => {
+        button.classList.remove('active');
+        button.style.display = 'none';
+    });
+    tabContents.forEach(content => {
+        content.classList.remove('active');
+    });
     
     tabButtons.forEach(button => {
         const tabId = button.getAttribute('data-tab');
@@ -634,15 +680,11 @@ function updateTabVisibility() {
             // 管理者は管理者用タブのみ表示
             if (adminTabs.includes(tabId)) {
                 button.style.display = 'inline-block';
-            } else {
-                button.style.display = 'none';
             }
         } else {
             // 一般ユーザーは一般ユーザー用タブのみ表示
             if (userTabs.includes(tabId)) {
                 button.style.display = 'inline-block';
-            } else {
-                button.style.display = 'none';
             }
         }
     });
@@ -654,21 +696,380 @@ function updateTabVisibility() {
     }
 }
 
-function loadMyShifts() {
+async function loadMyShifts() {
     console.log('自分のシフト一覧を読み込み中...');
     const container = document.getElementById('myShiftsContent');
-    if (container) {
-        container.innerHTML = '<p>自分のシフト一覧を読み込み中...</p>';
-        // TODO: 自分のシフト一覧を実装
+    if (!container) return;
+    
+    if (!currentUser) {
+        container.innerHTML = '<p>ログインが必要です。</p>';
+        return;
+    }
+    
+    // ローディング表示
+    container.innerHTML = `
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">自分のシフト一覧を読み込み中...</div>
+        </div>
+    `;
+    
+    try {
+        // ユーザーのシフトデータを取得
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=${currentUser.sub}`, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+                displayMyShifts(container, result.data);
+            } else {
+                container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
+            }
+        } else {
+            container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
+        }
+        
+    } catch (error) {
+        console.error('シフトデータの読み込みに失敗しました:', error);
+        container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
     }
 }
 
-function loadShiftRequestForm() {
+function displayMyShifts(container, shiftsData) {
+    if (!shiftsData || shiftsData.length === 0) {
+        container.innerHTML = `
+            <div class="no-shifts-message">
+                <h4>まだシフトが登録されていません</h4>
+                <p>「シフト申請」タブからシフトを申請してください。</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // シフトテーブルを作成
+    let tableHTML = `
+        <div class="my-shifts-summary">
+            <h4>登録済みシフト: ${shiftsData.length}件</h4>
+        </div>
+        <div class="my-shifts-table-container">
+            <table class="my-shifts-table">
+                <thead>
+                    <tr>
+                        <th>シフト日</th>
+                        <th>時間帯</th>
+                        <th>備考</th>
+                        <th>申請日</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    shiftsData.forEach(shift => {
+        const shiftDate = new Date(shift.shiftDate);
+        const formattedDate = shiftDate.toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'short'
+        });
+        
+        const registrationDate = new Date(shift.registrationDate);
+        const formattedRegDate = registrationDate.toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric'
+        });
+        
+        // 過去のシフトかどうか判定
+        const isPastShift = shiftDate < new Date();
+        const rowClass = isPastShift ? 'past-shift' : 'future-shift';
+        
+        tableHTML += `
+            <tr class="${rowClass}">
+                <td class="shift-date">${formattedDate}</td>
+                <td class="shift-time">${shift.timeSlot}</td>
+                <td class="shift-content">${shift.content || '-'}</td>
+                <td class="shift-reg-date">${formattedRegDate}</td>
+            </tr>
+        `;
+    });
+    
+    tableHTML += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = tableHTML;
+}
+
+async function loadShiftRequestForm() {
     console.log('シフト申請フォームを読み込み中...');
     const container = document.getElementById('shiftRequestContent');
-    if (container) {
-        container.innerHTML = '<p>シフト申請フォームを読み込み中...</p>';
-        // TODO: シフト申請フォームを実装
+    if (!container) return;
+    
+    // ローディング表示
+    container.innerHTML = `
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">シフト申請フォームを読み込み中...</div>
+        </div>
+    `;
+    
+    try {
+        // 人数設定データを読み込み
+        const capacityData = await fetchCapacityFromSpreadsheet();
+        
+        // コンテナをクリアしてカレンダーを生成
+        container.innerHTML = '<div id="shiftRequestCalendarContainer" class="calendar-container"></div>';
+        
+        // カレンダーを生成（シフト申請モード）
+        generateCalendar('shiftRequestCalendarContainer', false, true);
+        
+        // 人数データをカレンダーに反映
+        if (capacityData && capacityData.length > 0) {
+            displayCapacityOnCalendar(capacityData);
+            updateShiftRequestButtons(capacityData);
+        }
+        
+    } catch (error) {
+        console.error('シフト申請フォームの読み込みに失敗しました:', error);
+        container.innerHTML = '<p>シフト申請フォームの読み込みに失敗しました。</p>';
+    }
+}
+
+async function saveUserToSpreadsheet(userData) {
+    if (!userData) {
+        return;
+    }
+    
+    try {
+        console.log('ユーザー情報をスプレッドシートに保存中...');
+        
+        const userInfo = {
+            type: 'saveUser',
+            sub: userData.sub,
+            name: userData.name,
+            email: userData.email,
+            picture: userData.picture,
+            isAdmin: isAdminUser
+        };
+        
+        await fetch(GOOGLE_APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            mode: 'no-cors',
+            body: JSON.stringify(userInfo)
+        });
+        
+        console.log('ユーザー情報を保存しました');
+        
+    } catch (error) {
+        console.error('ユーザー情報の保存に失敗しました:', error);
+        // エラーが発生してもアプリケーションの動作は継続
+    }
+}
+
+function displayCapacityOnCalendar(capacityData) {
+    // データを日付をキーとするマップに変換
+    const capacityMap = {};
+    capacityData.forEach(item => {
+        if (item.date && item.date !== '') {
+            capacityMap[item.date] = item.capacity;
+        }
+    });
+    
+    // 各日付の人数表示を更新
+    Object.keys(capacityMap).forEach(dateKey => {
+        const capacityElement = document.getElementById(`capacity-${dateKey}`);
+        if (capacityElement) {
+            const capacity = capacityMap[dateKey];
+            capacityElement.innerHTML = `<span class="capacity-number">${capacity}</span><span class="capacity-unit">人</span>`;
+        }
+    });
+}
+
+function updateShiftRequestButtons(capacityData) {
+    // データを日付をキーとするマップに変換
+    const capacityMap = {};
+    capacityData.forEach(item => {
+        if (item.date && item.date !== '') {
+            capacityMap[item.date] = item.capacity;
+        }
+    });
+    
+    // 各日付の申請ボタンを更新
+    Object.keys(capacityMap).forEach(dateKey => {
+        const requestElement = document.getElementById(`request-${dateKey}`);
+        if (requestElement) {
+            const applyBtn = requestElement.querySelector('.shift-apply-btn');
+            if (applyBtn) {
+                const capacity = capacityMap[dateKey];
+                if (capacity === 0) {
+                    applyBtn.disabled = true;
+                    applyBtn.title = 'この日はシフト募集がありません';
+                } else {
+                    applyBtn.disabled = false;
+                    applyBtn.title = '';
+                }
+            }
+        }
+    });
+}
+
+let currentShiftRequestDate = null;
+let currentShiftRequestDateObj = null;
+let currentShiftCapacity = 0;
+
+function applyForShift(dateKey, dateObj) {
+    if (!currentUser) {
+        alert('ログインが必要です。');
+        return;
+    }
+    
+    currentShiftRequestDate = dateKey;
+    currentShiftRequestDateObj = dateObj;
+    
+    // 人数を取得
+    const capacityElement = document.getElementById(`capacity-${dateKey}`);
+    if (capacityElement) {
+        const capacityNumberElement = capacityElement.querySelector('.capacity-number');
+        currentShiftCapacity = parseInt(capacityNumberElement.textContent) || 0;
+    }
+    
+    // 0人の日は申請不可
+    if (currentShiftCapacity === 0) {
+        alert('この日はシフト募集がありません。');
+        return;
+    }
+    
+    openShiftRequestModal(dateKey, dateObj);
+}
+
+function openShiftRequestModal(dateKey, dateObj) {
+    const modal = document.getElementById('shiftRequestModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const timeSlotContainer = document.getElementById('timeSlotContainer');
+    
+    // タイトルを設定
+    const dateFormatted = new Date(dateKey).toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'short'
+    });
+    modalTitle.textContent = `${dateFormatted} のシフト申請`;
+    
+    // 時間枠を生成
+    generateTimeSlots(timeSlotContainer);
+    
+    // モーダルを表示
+    modal.style.display = 'flex';
+}
+
+function generateTimeSlots(container) {
+    container.innerHTML = '';
+    
+    // 13:00から18:00まで、30分単位で時間枠を生成
+    const startHour = 13;
+    const endHour = 18;
+    const slots = [];
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+        slots.push(`${hour}:00 - ${hour}:30`);
+        slots.push(`${hour}:30 - ${hour + 1}:00`);
+    }
+    
+    // 時間枠のチェックボックスを生成
+    slots.forEach(slot => {
+        const slotDiv = document.createElement('div');
+        slotDiv.className = 'time-slot';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `slot-${slot.replace(/[:\s-]/g, '')}`;
+        checkbox.value = slot;
+        checkbox.className = 'time-slot-checkbox';
+        
+        const label = document.createElement('label');
+        label.htmlFor = checkbox.id;
+        label.textContent = slot;
+        label.className = 'time-slot-label';
+        
+        slotDiv.appendChild(checkbox);
+        slotDiv.appendChild(label);
+        container.appendChild(slotDiv);
+    });
+}
+
+function closeShiftRequestModal() {
+    const modal = document.getElementById('shiftRequestModal');
+    modal.style.display = 'none';
+    
+    // 選択をクリア
+    const checkboxes = document.querySelectorAll('.time-slot-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    
+    // 備考欄をクリア
+    document.getElementById('shiftRemarks').value = '';
+}
+
+async function submitShiftRequest() {
+    const selectedSlots = [];
+    const checkboxes = document.querySelectorAll('.time-slot-checkbox:checked');
+    
+    checkboxes.forEach(cb => {
+        selectedSlots.push(cb.value);
+    });
+    
+    if (selectedSlots.length === 0) {
+        alert('時間枠を選択してください。');
+        return;
+    }
+    
+    const remarks = document.getElementById('shiftRemarks').value.trim();
+    
+    // ボタンを無効化
+    const submitBtn = document.querySelector('.submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '申請中...';
+    
+    try {
+        // 各時間枠ごとにシフトデータを作成して送信
+        for (const timeSlot of selectedSlots) {
+            const shiftData = {
+                type: 'shift',
+                userId: currentUser.sub,
+                userName: currentUser.name,
+                userEmail: currentUser.email,
+                date: currentShiftRequestDate,
+                time: timeSlot,
+                content: remarks || 'シフト'
+            };
+            
+            await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                mode: 'no-cors',
+                body: JSON.stringify(shiftData)
+            });
+        }
+        
+        alert(`${currentShiftRequestDate} の\n${selectedSlots.join('\n')}\nにシフトを申請しました。`);
+        closeShiftRequestModal();
+        
+    } catch (error) {
+        console.error('シフト申請の保存に失敗しました:', error);
+        alert('シフト申請の保存に失敗しました。再度お試しください。');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '申請する';
     }
 }
 
