@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google ログインアプリ</title>
+    <title>アルバイトシフト管理</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -97,43 +97,168 @@
             background-color: #6c757d;
             cursor: not-allowed;
         }
+        .navbar {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem 0;
+            margin: -50px auto 30px;
+            max-width: 100vw;
+            width: 100vw;
+            position: relative;
+            left: 50%;
+            right: 50%;
+            margin-left: -50vw;
+            margin-right: -50vw;
+        }
+        .navbar-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            text-decoration: none;
+        }
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .navbar-user img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .navbar-user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .navbar-user-name {
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        .navbar-user-email {
+            font-size: 0.7rem;
+            color: #bdc3c7;
+            margin: 0;
+        }
+        .navbar-logout {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .navbar-logout:hover {
+            background-color: #c0392b;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            margin-right: 5px;
+            transition: background-color 0.3s;
+        }
+        .tab:hover {
+            background-color: #e0e0e0;
+        }
+        .tab.active {
+            background-color: white;
+            font-weight: bold;
+            border-top: 3px solid #4285f4;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .shift-list {
+            margin-top: 20px;
+        }
+        .shift-item {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        .shift-item-date {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .shift-item-time {
+            color: #666;
+            margin: 5px 0;
+        }
+        .shift-item-content {
+            color: #333;
+        }
+        .no-shifts {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
+    <nav class="navbar" id="navbarSection">
+        <div class="navbar-container">
+            <a href="#" class="navbar-brand">アルバイトシフト管理</a>
+            <div class="navbar-user" id="navbarUserSection" style="display: none;">
+                <img id="navbarUserImage" src="" alt="ユーザー">
+                <div class="navbar-user-info">
+                    <p class="navbar-user-name" id="navbarUserName"></p>
+                    <p class="navbar-user-email" id="navbarUserEmail"></p>
+                </div>
+                <button class="navbar-logout" onclick="signOut()">ログアウト</button>
+            </div>
+            <div id="navbarLoginSection">
+                <div id="g_id_navbar_signin"></div>
+            </div>
+        </div>
+    </nav>
+
     <div class="login-container">
-        <h1>Google ログインアプリ</h1>
-        
         <div id="loginSection">
-            <p>Googleアカウントでログインしてください</p>
-            <div id="g_id_onload"
-                 data-client_id=""
-                 data-context="signin"
-                 data-ux_mode="popup"
-                 data-callback="handleCredentialResponse"
-                 data-auto_prompt="false">
-            </div>
-            
-            <div class="g_id_signin"
-                 data-type="standard"
-                 data-shape="rectangular"
-                 data-theme="outline"
-                 data-text="signin_with"
-                 data-size="large"
-                 data-logo_alignment="left">
-            </div>
+            <h2>ログインが必要です</h2>
+            <p>右上のボタンからGoogleアカウントでログインしてください。</p>
         </div>
 
         <div id="profileSection" class="hidden">
-            <div class="profile">
-                <img id="userImage" src="" alt="ユーザー画像" width="100" height="100">
-                <h2 id="userName"></h2>
-                <p id="userEmail"></p>
-                <button class="logout-btn" onclick="signOut()">ログアウト</button>
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('shift-list')">シフト一覧</div>
+                <div class="tab" onclick="switchTab('shift-apply')">シフト申請</div>
             </div>
             
-            <div class="shift-form">
-                <h3>シフト登録</h3>
-                <form id="shiftForm">
+            <div id="shift-list" class="tab-content active">
+                <div class="shift-list" id="shiftListContainer">
+                    <div class="no-shifts">
+                        <p>登録されたシフトはまだありません。</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="shift-apply" class="tab-content">
+                <div class="shift-form">
+                    <h3>シフト登録</h3>
+                    <form id="shiftForm">
                     <div class="form-group">
                         <label for="shiftDate">日付:</label>
                         <input type="date" id="shiftDate" name="shiftDate" required>
@@ -164,8 +289,17 @@
                 <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
                     すべてのシフトをカレンダーに同期
                 </button>
+                </div>
             </div>
         </div>
+    </div>
+
+    <div id="g_id_onload"
+         data-client_id=""
+         data-context="signin"
+         data-ux_mode="popup"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
     </div>
 
     <script src="https://accounts.google.com/gsi/client" async defer></script>

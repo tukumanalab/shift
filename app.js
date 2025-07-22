@@ -54,10 +54,12 @@ function showProfile(profileData) {
     
     document.getElementById('loginSection').classList.add('hidden');
     document.getElementById('profileSection').classList.remove('hidden');
+    document.getElementById('navbarUserSection').style.display = 'flex';
+    document.getElementById('navbarLoginSection').style.display = 'none';
     
-    document.getElementById('userImage').src = profileData.picture;
-    document.getElementById('userName').textContent = profileData.name;
-    document.getElementById('userEmail').textContent = profileData.email;
+    document.getElementById('navbarUserImage').src = profileData.picture;
+    document.getElementById('navbarUserName').textContent = profileData.name;
+    document.getElementById('navbarUserEmail').textContent = profileData.email;
     
     setupShiftForm();
 }
@@ -161,13 +163,28 @@ function signOut() {
     currentUser = null;
     document.getElementById('loginSection').classList.remove('hidden');
     document.getElementById('profileSection').classList.add('hidden');
+    document.getElementById('navbarUserSection').style.display = 'none';
+    document.getElementById('navbarLoginSection').style.display = 'block';
     
-    document.getElementById('userImage').src = '';
-    document.getElementById('userName').textContent = '';
-    document.getElementById('userEmail').textContent = '';
+    document.getElementById('navbarUserImage').src = '';
+    document.getElementById('navbarUserName').textContent = '';
+    document.getElementById('navbarUserEmail').textContent = '';
     document.getElementById('shiftForm').reset();
     
     console.log('ユーザーがログアウトしました');
+}
+
+function switchTab(tabName) {
+    // すべてのタブとコンテンツを非アクティブにする
+    const tabs = document.querySelectorAll('.tab');
+    const contents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => tab.classList.remove('active'));
+    contents.forEach(content => content.classList.remove('active'));
+    
+    // 選択されたタブとコンテンツをアクティブにする
+    event.target.classList.add('active');
+    document.getElementById(tabName).classList.add('active');
 }
 
 window.onload = function () {
@@ -179,7 +196,7 @@ window.onload = function () {
     });
     
     google.accounts.id.renderButton(
-        document.querySelector('.g_id_signin'),
-        { theme: 'outline', size: 'large' }
+        document.getElementById('g_id_navbar_signin'),
+        { theme: 'outline', size: 'medium', text: 'signin' }
     );
 };
