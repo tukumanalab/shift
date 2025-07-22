@@ -2,6 +2,7 @@ const GOOGLE_APPS_SCRIPT_URL = config.GOOGLE_APPS_SCRIPT_URL;
 const GOOGLE_CLIENT_ID = config.GOOGLE_CLIENT_ID;
 
 let currentUser = null;
+let shiftInfo = null;
 
 function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
@@ -62,6 +63,11 @@ function showProfile(profileData) {
     document.getElementById('navbarUserEmail').textContent = profileData.email;
     
     setupShiftForm();
+    
+    // デフォルトタブがシフト一覧なので、シフト申請タブの時だけカレンダーを生成
+    if (document.querySelector('.tab.active').textContent === 'シフト申請') {
+        generateCalendar();
+    }
 }
 
 async function saveShiftToSpreadsheet(shiftData) {
@@ -174,7 +180,7 @@ function signOut() {
     console.log('ユーザーがログアウトしました');
 }
 
-function switchTab(tabName) {
+function switchTab(tabName, clickEvent) {
     // すべてのタブとコンテンツを非アクティブにする
     const tabs = document.querySelectorAll('.tab');
     const contents = document.querySelectorAll('.tab-content');
@@ -183,8 +189,188 @@ function switchTab(tabName) {
     contents.forEach(content => content.classList.remove('active'));
     
     // 選択されたタブとコンテンツをアクティブにする
-    event.target.classList.add('active');
+    clickEvent.target.classList.add('active');
     document.getElementById(tabName).classList.add('active');
+    
+    // シフト申請タブが選択されたらカレンダーを生成
+    if (tabName === 'shift-apply' && currentUser) {
+        generateCalendar();
+    }
+}
+
+async function loadShiftInfo() {
+    try {
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL + '?type=loadCapacity');
+        const data = await response.json();
+        
+        if (!data.success) {
+            console.error('シフト情報の取得に失敗しました:', data.error);
+            return null;
+        }
+        
+        console.log('取得したシフト情報:', data.data); // デバッグ用
+        shiftInfo = data.data;
+        return data.data;
+    } catch (error) {
+        console.error('シフト情報の取得中にエラーが発生しました:', error);
+        return null;
+    }
+}
+
+async function generateCalendar() {
+    const calendarGrid = document.getElementById('calendar-grid');
+    calendarGrid.innerHTML = '<p>カレンダーを読み込み中...</p>';
+    
+    // シフト情報を取得
+    const loadedShiftInfo = await loadShiftInfo();
+    
+    if (!loadedShiftInfo) {
+        calendarGrid.innerHTML = '<p>シフト情報の取得に失敗しました。しばらくしてから再度お試しください。</p>';
+        return;
+    }
+    
+    calendarGrid.innerHTML = '';
+    
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+    
+    // 来年度の3月末を計算
+    const nextYear = currentMonth >= 3 ? currentYear + 1 : currentYear;
+    const endDate = new Date(nextYear, 3, 0); // 3月末日
+    
+    // 今月から来年3月までループ
+    let loopDate = new Date(currentYear, currentMonth, 1);
+    
+    while (loopDate <= endDate) {
+        const monthDiv = createMonthCalendar(loopDate.getFullYear(), loopDate.getMonth());
+        calendarGrid.appendChild(monthDiv);
+        
+        // 次の月へ
+        loopDate.setMonth(loopDate.getMonth() + 1);
+    }
+}
+
+function createMonthCalendar(year, month) {
+    const monthDiv = document.createElement('div');
+    monthDiv.className = 'calendar-month';
+    
+    // 月のヘッダー
+    const header = document.createElement('div');
+    header.className = 'calendar-month-header';
+    header.textContent = `${year}年${month + 1}月`;
+    monthDiv.appendChild(header);
+    
+    // カレンダーグリッド
+    const grid = document.createElement('div');
+    grid.className = 'calendar-grid';
+    
+    // 曜日ヘッダー
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    weekdays.forEach(day => {
+        const weekdayDiv = document.createElement('div');
+        weekdayDiv.className = 'calendar-weekday';
+        weekdayDiv.textContent = day;
+        grid.appendChild(weekdayDiv);
+    });
+    
+    // 月の最初の日と最後の日
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const firstDayOfWeek = firstDay.getDay();
+    const daysInMonth = lastDay.getDate();
+    
+    // 前月の空白
+    for (let i = 0; i < firstDayOfWeek; i++) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'calendar-day other-month';
+        grid.appendChild(emptyDiv);
+    }
+    
+    // 日付を追加
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'calendar-day';
+        
+        const dayOfWeek = new Date(year, month, day).getDay();
+        if (dayOfWeek === 0) dayDiv.classList.add('sunday');
+        if (dayOfWeek === 6) dayDiv.classList.add('saturday');
+        
+        const dayNumber = document.createElement('div');
+        dayNumber.className = 'calendar-day-number';
+        dayNumber.textContent = day;
+        dayDiv.appendChild(dayNumber);
+        
+        // シフト情報を表示
+        if (shiftInfo) {
+            console.log('shiftInfoの構造:', {
+                hasRequiredStaff: !!shiftInfo.requiredStaff,
+                hasRegisteredShifts: !!shiftInfo.registeredShifts,
+                requiredStaffKeys: shiftInfo.requiredStaff ? Object.keys(shiftInfo.requiredStaff) : [],
+                registeredShiftsKeys: shiftInfo.registeredShifts ? Object.keys(shiftInfo.registeredShifts) : []
+            });
+            
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const shiftContainer = document.createElement('div');
+            shiftContainer.className = 'shift-info-container';
+            
+            // 各時間枠の残り人数を表示
+            const timeSlots = ['13:00-13:30', '13:30-14:00', '14:00-14:30', '14:30-15:00', 
+                             '15:00-15:30', '15:30-16:00', '16:00-16:30', '16:30-17:00', 
+                             '17:00-17:30', '17:30-18:00'];
+            
+            let hasAvailableSlot = false;
+            timeSlots.forEach(slot => {
+                const required = (shiftInfo.requiredStaff && shiftInfo.requiredStaff[slot]) || 0;
+                const registered = (shiftInfo.registeredShifts && shiftInfo.registeredShifts[dateStr] && 
+                                  shiftInfo.registeredShifts[dateStr][slot]) || 0;
+                const available = required - registered;
+                
+                console.log(`${dateStr} ${slot}: required=${required}, registered=${registered}, available=${available}`);
+                
+                if (available > 0) {
+                    hasAvailableSlot = true;
+                    const slotDiv = document.createElement('div');
+                    slotDiv.className = 'shift-slot-info';
+                    slotDiv.textContent = `${slot.split('-')[0]}: 残${available}`;
+                    shiftContainer.appendChild(slotDiv);
+                }
+            });
+            
+            if (hasAvailableSlot) {
+                dayDiv.appendChild(shiftContainer);
+                console.log(`${dateStr}に利用可能なスロットを追加しました`);
+            } else {
+                console.log(`${dateStr}には利用可能なスロットがありませんでした`);
+            }
+        } else {
+            console.log('shiftInfoがnullまたはundefinedです');
+        }
+        
+        // クリックイベント
+        dayDiv.addEventListener('click', function(e) {
+            selectDate(year, month, day, e);
+        });
+        
+        grid.appendChild(dayDiv);
+    }
+    
+    monthDiv.appendChild(grid);
+    return monthDiv;
+}
+
+function selectDate(year, month, day, clickEvent) {
+    // 以前の選択をクリア
+    document.querySelectorAll('.calendar-day.selected').forEach(el => {
+        el.classList.remove('selected');
+    });
+    
+    // 新しい日付を選択
+    clickEvent.target.closest('.calendar-day').classList.add('selected');
+    
+    // フォームに日付を設定
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    document.getElementById('shiftDate').value = dateStr;
 }
 
 window.onload = function () {

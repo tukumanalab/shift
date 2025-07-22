@@ -215,6 +215,90 @@
             padding: 40px;
             color: #666;
         }
+        .calendar-section {
+            margin-bottom: 30px;
+        }
+        .calendar-month {
+            margin-bottom: 30px;
+        }
+        .calendar-month-header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 5px 5px 0 0;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background-color: #ddd;
+            border: 1px solid #ddd;
+        }
+        .calendar-weekday {
+            background-color: #34495e;
+            color: white;
+            padding: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .calendar-day {
+            background-color: white;
+            min-height: 80px;
+            padding: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .calendar-day:hover {
+            background-color: #f0f0f0;
+        }
+        .calendar-day.other-month {
+            background-color: #f9f9f9;
+            color: #ccc;
+        }
+        .calendar-day.selected {
+            background-color: #e3f2fd;
+            border: 2px solid #2196f3;
+        }
+        .calendar-day.has-shift {
+            background-color: #e8f5e9;
+        }
+        .calendar-day-number {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .calendar-day.sunday .calendar-day-number {
+            color: #e74c3c;
+        }
+        .calendar-day.saturday .calendar-day-number {
+            color: #3498db;
+        }
+        #calendar-grid {
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .shift-info-container {
+            margin-top: 5px;
+            font-size: 0.7rem;
+        }
+        .shift-slot-info {
+            background-color: #e3f2fd;
+            padding: 1px 3px;
+            margin: 1px 0;
+            border-radius: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     </style>
 </head>
 <body>
@@ -243,8 +327,8 @@
 
         <div id="profileSection" class="hidden">
             <div class="tabs">
-                <div class="tab active" onclick="switchTab('shift-list')">シフト一覧</div>
-                <div class="tab" onclick="switchTab('shift-apply')">シフト申請</div>
+                <div class="tab active" onclick="switchTab('shift-list', event)">シフト一覧</div>
+                <div class="tab" onclick="switchTab('shift-apply', event)">シフト申請</div>
             </div>
             
             <div id="shift-list" class="tab-content active">
@@ -256,6 +340,11 @@
             </div>
             
             <div id="shift-apply" class="tab-content">
+                <div id="calendar-container" class="calendar-section">
+                    <h3>シフト申請カレンダー</h3>
+                    <div id="calendar-grid"></div>
+                </div>
+                
                 <div class="shift-form">
                     <h3>シフト登録</h3>
                     <form id="shiftForm">
@@ -268,13 +357,16 @@
                         <label for="shiftTime">時間帯:</label>
                         <select id="shiftTime" name="shiftTime" required>
                             <option value="">選択してください</option>
-                            <option value="早朝 (6:00-9:00)">早朝 (6:00-9:00)</option>
-                            <option value="午前 (9:00-12:00)">午前 (9:00-12:00)</option>
-                            <option value="午後 (12:00-15:00)">午後 (12:00-15:00)</option>
-                            <option value="夕方 (15:00-18:00)">夕方 (15:00-18:00)</option>
-                            <option value="夜間 (18:00-21:00)">夜間 (18:00-21:00)</option>
-                            <option value="深夜 (21:00-24:00)">深夜 (21:00-24:00)</option>
-                            <option value="終日 (9:00-18:00)">終日 (9:00-18:00)</option>
+                            <option value="13:00-13:30">13:00 - 13:30</option>
+                            <option value="13:30-14:00">13:30 - 14:00</option>
+                            <option value="14:00-14:30">14:00 - 14:30</option>
+                            <option value="14:30-15:00">14:30 - 15:00</option>
+                            <option value="15:00-15:30">15:00 - 15:30</option>
+                            <option value="15:30-16:00">15:30 - 16:00</option>
+                            <option value="16:00-16:30">16:00 - 16:30</option>
+                            <option value="16:30-17:00">16:30 - 17:00</option>
+                            <option value="17:00-17:30">17:00 - 17:30</option>
+                            <option value="17:30-18:00">17:30 - 18:00</option>
                         </select>
                     </div>
                     

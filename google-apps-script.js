@@ -4,6 +4,31 @@
 // カレンダーID（「つくまなバイト2」カレンダーのID）
 const CALENDAR_ID = 'tukumanalab@gmail.com';
 
+function doGet(e) {
+  try {
+    const params = e.parameter;
+    
+    if (params.type === 'loadCapacity') {
+      // 人数設定データの読み込み
+      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const capacityData = loadCapacitySettings(spreadsheet);
+      
+      return ContentService
+        .createTextOutput(JSON.stringify({success: true, data: capacityData}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({success: false, error: 'Invalid request'}))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({success: false, error: error.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
@@ -31,6 +56,17 @@ function doPost(e) {
       // Google Calendarに予定を追加
       addToCalendar(data);
       
+    } else if (data.type === 'capacity') {
+      // 人数設定データの処理
+      saveCapacitySettings(spreadsheet, data.data);
+      
+    } else if (data.type === 'loadCapacity') {
+      // 人数設定データの読み込み
+      const capacityData = loadCapacitySettings(spreadsheet);
+      return ContentService
+        .createTextOutput(JSON.stringify({success: true, data: capacityData}))
+        .setMimeType(ContentService.MimeType.JSON);
+        
     } else if (data.type === 'syncAll') {
       // 全シフトデータの同期
       syncAllShiftsToCalendar();
@@ -135,6 +171,205 @@ function parseTimeSlot(timeSlot) {
   };
   
   return timeSlots[timeSlot] || { startHour: 9, startMinute: 0, endHour: 18, endMinute: 0 };
+}
+
+function loadCapacitySettings(spreadsheet) {
+  try {
+    // 「人数設定」シートを取得
+    const capacitySheet = spreadsheet.getSheetByName('人数設定');
+    
+    if (!capacitySheet) {
+      Logger.log('「人数設定」シートが見つかりません');
+      return [];
+    }
+    
+    // データを取得（ヘッダー行を除く）
+    const data = capacitySheet.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      Logger.log('人数設定データがありません');
+      return [];
+    }
+    
+    // データを変換して返す
+    const capacityData = data.slice(1).map(row => {
+      let dateStr = '';
+      try {
+        // 日付の形式を統一
+        const dateValue = row[1];
+        if (dateValue instanceof Date) {
+          dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (typeof dateValue === 'string') {
+          // 文字列の場合はそのまま使用（YYYY-MM-DD形式を想定）
+          dateStr = dateValue;
+        } else {
+          // その他の場合は空文字列
+          dateStr = '';
+        }
+      } catch (e) {
+        dateStr = '';
+      }
+      
+      return {
+        date: dateStr,
+        capacity: parseInt(row[2]) || 0
+      };
+    }).filter(item => item.date !== ''); // 有効な日付のみ
+    
+    Logger.log(`${capacityData.length}件の人数設定を読み込みました`);
+    return capacityData;
+    
+  } catch (error) {
+    Logger.log('人数設定の読み込みに失敗しました: ' + error.toString());
+    return [];
+  }
+}
+
+function saveCapacitySettings(spreadsheet, capacityData) {
+  try {
+    // 「人数設定」シートを取得または作成
+    let capacitySheet = spreadsheet.getSheetByName('人数設定');
+    
+    if (!capacitySheet) {
+      // シートが存在しない場合は作成して初期化
+      capacitySheet = spreadsheet.insertSheet('人数設定');
+      
+      // ヘッダー行を追加
+      capacitySheet.appendRow([
+        '更新日時',
+        '日付',
+        '必要人数',
+        '更新者ID',
+        '更新者名'
+      ]);
+      
+      // 年度末までの全日付のデータを初期化
+      initializeCapacityData(capacitySheet);
+    }
+    
+    // 既存のデータから更新対象の日付のみ更新
+    updateCapacityData(capacitySheet, capacityData);
+    
+    Logger.log(`${capacityData.length}件の人数設定を保存しました`);
+    
+  } catch (error) {
+    Logger.log('人数設定の保存に失敗しました: ' + error.toString());
+    throw error;
+  }
+}
+
+function initializeCapacityData(capacitySheet) {
+  try {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const nextYear = currentYear + 1;
+    
+    // 現在の月から来年度末（3月31日）まで
+    let startDate = new Date(currentYear, today.getMonth(), 1);
+    let endDate = new Date(nextYear, 3, 0); // 3月31日
+    
+    // もし現在が4月以降なら、今年度末まで
+    if (today.getMonth() >= 3) {
+      endDate = new Date(currentYear + 1, 3, 0);
+    }
+    
+    const initData = [];
+    let currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      const dateStr = Utilities.formatDate(currentDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      const dayOfWeek = currentDate.getDay();
+      
+      // デフォルトの人数を設定（日曜日=0, 月曜日=1, 火曜日=2, 水曜日=3, 木曜日=4, 金曜日=5, 土曜日=6）
+      let defaultCapacity;
+      switch (dayOfWeek) {
+        case 0: // 日曜日
+        case 6: // 土曜日
+          defaultCapacity = 0;
+          break;
+        case 3: // 水曜日
+          defaultCapacity = 2;
+          break;
+        default: // 月火木金
+          defaultCapacity = 3;
+          break;
+      }
+      
+      initData.push([
+        new Date(),
+        dateStr,
+        defaultCapacity,
+        'system',
+        'システム初期化'
+      ]);
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // 一括でデータを追加
+    if (initData.length > 0) {
+      capacitySheet.getRange(2, 1, initData.length, 5).setValues(initData);
+      Logger.log(`${initData.length}件の人数設定を初期化しました`);
+    }
+    
+  } catch (error) {
+    Logger.log('人数設定の初期化に失敗しました: ' + error.toString());
+    throw error;
+  }
+}
+
+function updateCapacityData(capacitySheet, capacityData) {
+  try {
+    // 既存のデータを取得
+    const existingData = capacitySheet.getDataRange().getValues();
+    const headerRow = existingData[0];
+    const dataRows = existingData.slice(1);
+    
+    // 日付をキーとするマップを作成
+    const dateRowMap = {};
+    dataRows.forEach((row, index) => {
+      const dateValue = row[1];
+      let dateStr = '';
+      
+      if (dateValue instanceof Date) {
+        dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else if (typeof dateValue === 'string') {
+        dateStr = dateValue;
+      }
+      
+      if (dateStr) {
+        dateRowMap[dateStr] = index + 2; // シートの行番号（1ベース、ヘッダー分+1）
+      }
+    });
+    
+    // 各データを更新
+    capacityData.forEach(item => {
+      const rowNumber = dateRowMap[item.date];
+      if (rowNumber) {
+        // 既存の行を更新
+        capacitySheet.getRange(rowNumber, 1, 1, 5).setValues([[
+          new Date(item.timestamp),
+          item.date,
+          item.capacity,
+          item.userId,
+          item.userName
+        ]]);
+      } else {
+        // 新しい日付の場合は追加
+        capacitySheet.appendRow([
+          new Date(item.timestamp),
+          item.date,
+          item.capacity,
+          item.userId,
+          item.userName
+        ]);
+      }
+    });
+    
+  } catch (error) {
+    Logger.log('人数設定の更新に失敗しました: ' + error.toString());
+    throw error;
+  }
 }
 
 function syncAllShiftsToCalendar() {
