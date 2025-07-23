@@ -1,8 +1,37 @@
 // Google Apps Script用のJavaScriptコード
 // このファイルをGoogle Apps Scriptエディタにコピー&ペーストしてください
 
-// 設定値（gas/config.jsから取得）
-const CALENDAR_ID = 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com';
+// 設定値をプロパティサービスから取得
+function getCalendarId() {
+  const properties = PropertiesService.getScriptProperties();
+  let calendarId = properties.getProperty('CALENDAR_ID');
+  
+  // プロパティが設定されていない場合のデフォルト値
+  if (!calendarId) {
+    calendarId = 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com';
+    Logger.log('CALENDAR_IDが設定されていないため、デフォルト値を使用します: ' + calendarId);
+  }
+  
+  return calendarId;
+}
+
+// 初期設定関数：カレンダーIDをプロパティに設定
+// 使用方法：
+// 1. Google Apps Scriptエディタでこの関数を実行
+// 2. または、gas/config.jsのCALENDAR_IDを変更した後、setCalendarIdWithValue('新しいID')を実行
+function setCalendarId() {
+  const properties = PropertiesService.getScriptProperties();
+  const calendarId = 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com';
+  properties.setProperty('CALENDAR_ID', calendarId);
+  Logger.log('CALENDAR_IDを設定しました: ' + calendarId);
+}
+
+// カレンダーIDを直接指定して設定する関数
+function setCalendarIdWithValue(calendarId) {
+  const properties = PropertiesService.getScriptProperties();
+  properties.setProperty('CALENDAR_ID', calendarId);
+  Logger.log('CALENDAR_IDを設定しました: ' + calendarId);
+}
 
 function doGet(e) {
   try {
@@ -119,10 +148,10 @@ function doPost(e) {
 function addToCalendar(shiftData) {
   try {
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById(getCalendarId());
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: ' + CALENDAR_ID);
+      throw new Error('カレンダーが見つかりません: ' + getCalendarId());
     }
     
     // 日付と時間の解析
@@ -614,10 +643,10 @@ function syncAllShiftsToCalendar() {
     }
     
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById(getCalendarId());
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: ' + CALENDAR_ID);
+      throw new Error('カレンダーが見つかりません: ' + getCalendarId());
     }
     
     // 既存のカレンダーイベントを削除（重複を防ぐため）
