@@ -362,7 +362,9 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                         const capacityInfo = document.createElement('span');
                         capacityInfo.className = 'inline-time-slot-capacity';
                         capacityInfo.id = `capacity-${dateKey}-${slot.replace(/[:\s-]/g, '')}`;
-                        capacityInfo.textContent = '(1/1)';
+                        // デフォルト容量を使用（後でupdateInlineTimeSlotCapacityで正しい値に更新される）
+                        const defaultCapacity = getDefaultCapacity(dayOfWeek);
+                        capacityInfo.textContent = `(${defaultCapacity}/${defaultCapacity})`;
                         
                         slotDiv.appendChild(checkbox);
                         slotDiv.appendChild(label);
@@ -986,48 +988,27 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
         const dateKey = element.getAttribute('data-date');
         if (dateKey) {
             // 時間枠ごとの容量を更新
-            updateInlineTimeSlotCapacity(dateKey, shiftCounts);
+            updateInlineTimeSlotCapacity(dateKey, shiftCounts, capacityMap);
             
             // 日付全体の表示を更新（利用可能な時間枠数で計算）
             const capacityElement = document.getElementById(`capacity-${dateKey}`);
             if (capacityElement) {
-                // 時間枠ごとの利用可能数を計算（13:00-18:00、30分単位で10枠）
-                const startHour = 13;
-                const endHour = 18;
-                const slots = [];
-                
-                for (let hour = startHour; hour < endHour; hour++) {
-                    slots.push(`${hour}:00 - ${hour}:30`);
-                    slots.push(`${hour}:30 - ${hour + 1}:00`);
+                // その日付の最大容量を取得
+                let maxCapacityForDate = capacityMap[dateKey];
+                if (maxCapacityForDate === undefined) {
+                    const date = new Date(dateKey);
+                    const dayOfWeek = date.getDay();
+                    maxCapacityForDate = getDefaultCapacity(dayOfWeek);
                 }
                 
-                let availableSlots = 0;
-                let totalSlots = slots.length;
-                
-                slots.forEach(slot => {
-                    const currentCount = (shiftCounts[dateKey] && shiftCounts[dateKey][slot]) || 0;
-                    const maxCapacity = 1; // 各枠1人まで
-                    const remainingCount = Math.max(0, maxCapacity - currentCount);
-                    if (remainingCount > 0) {
-                        availableSlots++;
-                    }
-                });
-                
-                // 色の条件分岐
-                let colorClass = '';
-                if (availableSlots === 0 && totalSlots > 0) {
-                    colorClass = ' capacity-full';
-                } else if (availableSlots === 1 && totalSlots > 1) {
-                    colorClass = ' capacity-warning';
-                }
-                
-                capacityElement.innerHTML = `<span class="capacity-number${colorClass}">${availableSlots}/${totalSlots}</span><span class="capacity-unit">枠</span>`;
+                // その日に設定されているシフト人数のみを表示
+                capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
             }
         }
     });
 }
 
-function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}) {
+function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}, capacityMap = {}) {
     // 13:00から18:00まで、30分単位で時間枠を生成
     const startHour = 13;
     const endHour = 18;
@@ -1038,6 +1019,15 @@ function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}) {
         slots.push(`${hour}:30 - ${hour + 1}:00`);
     }
     
+    // その日付の最大容量を取得（設定がない場合はデフォルト値を使用）
+    let maxCapacityForDate = capacityMap[dateKey];
+    if (maxCapacityForDate === undefined) {
+        // デフォルト値を計算
+        const date = new Date(dateKey);
+        const dayOfWeek = date.getDay();
+        maxCapacityForDate = getDefaultCapacity(dayOfWeek);
+    }
+    
     slots.forEach(slot => {
         const capacityElement = document.getElementById(`capacity-${dateKey}-${slot.replace(/[:\s-]/g, '')}`);
         const checkboxElement = document.getElementById(`slot-${dateKey}-${slot.replace(/[:\s-]/g, '')}`);
@@ -1045,7 +1035,7 @@ function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}) {
         if (capacityElement && checkboxElement) {
             // その日付・時間枠の現在の申請数を取得
             const currentCount = (shiftCounts[dateKey] && shiftCounts[dateKey][slot]) || 0;
-            const maxCapacity = 1; // 30分枠は1人まで
+            const maxCapacity = maxCapacityForDate; // その日の設定人数が各時間枠の最大人数
             const remainingCount = Math.max(0, maxCapacity - currentCount);
             
             // 表示を更新
