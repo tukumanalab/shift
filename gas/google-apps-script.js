@@ -1,6 +1,9 @@
 // Google Apps Script用のJavaScriptコード
 // このファイルをGoogle Apps Scriptエディタにコピー&ペーストしてください
 
+// 設定値（gas/config.jsから取得）
+const CALENDAR_ID = 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com';
+
 function doGet(e) {
   try {
     const params = e.parameter;
@@ -116,10 +119,10 @@ function doPost(e) {
 function addToCalendar(shiftData) {
   try {
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById('c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
+    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
+      throw new Error('カレンダーが見つかりません: ' + CALENDAR_ID);
     }
     
     // 日付と時間の解析
@@ -611,10 +614,10 @@ function syncAllShiftsToCalendar() {
     }
     
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById('c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
+    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
+      throw new Error('カレンダーが見つかりません: ' + CALENDAR_ID);
     }
     
     // 既存のカレンダーイベントを削除（重複を防ぐため）
