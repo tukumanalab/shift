@@ -1,29 +1,6 @@
 // Google Apps Script用のJavaScriptコード
 // このファイルをGoogle Apps Scriptエディタにコピー&ペーストしてください
 
-// 設定値（gas/config.jsから取得）
-const GAS_CONFIG = {
-  // カレンダーID（「つくまなバイト2」カレンダーのID）
-  CALENDAR_ID: 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com',
-  
-  // タイムゾーン
-  TIME_ZONE: 'Asia/Tokyo',
-  
-  // デフォルトの人数設定
-  DEFAULT_CAPACITY: {
-    WEEKDAY: 3,     // 月火木金
-    WEDNESDAY: 2,   // 水曜日
-    WEEKEND: 0      // 土日
-  },
-  
-  // シート名
-  SHEET_NAMES: {
-    SHIFTS: 'シフト',
-    CAPACITY: '人数設定',
-    USERS: 'ユーザー'
-  }
-};
-
 function doGet(e) {
   try {
     const params = e.parameter;
@@ -83,10 +60,10 @@ function doPost(e) {
     
     if (data.type === 'shift') {
       // シフトデータの処理
-      const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
+      const shiftSheet = spreadsheet.getSheetByName('シフト');
       
       if (!shiftSheet) {
-        throw new Error(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
+        throw new Error(`「シフト」シートが見つかりません`);
       }
       
       // シフトデータを追加
@@ -139,10 +116,10 @@ function doPost(e) {
 function addToCalendar(shiftData) {
   try {
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById(GAS_CONFIG.CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById('c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: ' + GAS_CONFIG.CALENDAR_ID);
+      throw new Error('カレンダーが見つかりません: c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
     }
     
     // 日付と時間の解析
@@ -196,10 +173,10 @@ function parseTimeSlot(timeSlot) {
 function loadCapacitySettings(spreadsheet) {
   try {
     // 「人数設定」シートを取得
-    const capacitySheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.CAPACITY);
+    const capacitySheet = spreadsheet.getSheetByName('人数設定');
     
     if (!capacitySheet) {
-      Logger.log(`「${GAS_CONFIG.SHEET_NAMES.CAPACITY}」シートが見つかりません`);
+      Logger.log(`「人数設定」シートが見つかりません`);
       return [];
     }
     
@@ -248,11 +225,11 @@ function loadCapacitySettings(spreadsheet) {
 function saveCapacitySettings(spreadsheet, capacityData) {
   try {
     // 「人数設定」シートを取得または作成
-    let capacitySheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.CAPACITY);
+    let capacitySheet = spreadsheet.getSheetByName('人数設定');
     
     if (!capacitySheet) {
       // シートが存在しない場合は作成して初期化
-      capacitySheet = spreadsheet.insertSheet(GAS_CONFIG.SHEET_NAMES.CAPACITY);
+      capacitySheet = spreadsheet.insertSheet('人数設定');
       
       // ヘッダー行を追加
       capacitySheet.appendRow([
@@ -305,13 +282,13 @@ function initializeCapacityData(capacitySheet) {
       switch (dayOfWeek) {
         case 0: // 日曜日
         case 6: // 土曜日
-          defaultCapacity = GAS_CONFIG.DEFAULT_CAPACITY.WEEKEND;
+          defaultCapacity = 0;
           break;
         case 3: // 水曜日
-          defaultCapacity = GAS_CONFIG.DEFAULT_CAPACITY.WEDNESDAY;
+          defaultCapacity = 2;
           break;
         default: // 月火木金
-          defaultCapacity = GAS_CONFIG.DEFAULT_CAPACITY.WEEKDAY;
+          defaultCapacity = 3;
           break;
       }
       
@@ -395,11 +372,11 @@ function updateCapacityData(capacitySheet, capacityData) {
 function saveUserData(spreadsheet, userData) {
   try {
     // 「ユーザー」シートを取得または作成
-    let userSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.USERS);
+    let userSheet = spreadsheet.getSheetByName('ユーザー');
     
     if (!userSheet) {
       // シートが存在しない場合は作成
-      userSheet = spreadsheet.insertSheet(GAS_CONFIG.SHEET_NAMES.USERS);
+      userSheet = spreadsheet.insertSheet('ユーザー');
       
       // ヘッダー行を追加
       userSheet.appendRow([
@@ -634,10 +611,10 @@ function syncAllShiftsToCalendar() {
     }
     
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById(GAS_CONFIG.CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById('c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: ' + GAS_CONFIG.CALENDAR_ID);
+      throw new Error('カレンダーが見つかりません: c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com');
     }
     
     // 既存のカレンダーイベントを削除（重複を防ぐため）
