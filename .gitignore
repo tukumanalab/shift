@@ -8,4 +8,3 @@ config.js
 
 # clasp files
 gas/.clasp.json
-gas/appsscript.json
