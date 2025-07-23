@@ -1,18 +1,26 @@
 // Google Apps Script用のJavaScriptコード
 // このファイルをGoogle Apps Scriptエディタにコピー&ペーストしてください
 
-// 設定値
+// 設定値（gas/config.jsから取得）
 const GAS_CONFIG = {
-  SHEET_NAMES: {
-    USERS: 'ユーザー',
-    SHIFTS: 'シフト',
-    CAPACITY: '人数設定'
-  },
-  CALENDAR_ID: 'tukumanalab@gmail.com',
+  // カレンダーID（「つくまなバイト2」カレンダーのID）
+  CALENDAR_ID: 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com',
+  
+  // タイムゾーン
+  TIME_ZONE: 'Asia/Tokyo',
+  
+  // デフォルトの人数設定
   DEFAULT_CAPACITY: {
-    WEEKDAY: 3,    // 月火木金
-    WEDNESDAY: 2,  // 水曜日
-    WEEKEND: 0     // 土日
+    WEEKDAY: 3,     // 月火木金
+    WEDNESDAY: 2,   // 水曜日
+    WEEKEND: 0      // 土日
+  },
+  
+  // シート名
+  SHEET_NAMES: {
+    SHIFTS: 'シフト',
+    CAPACITY: '人数設定',
+    USERS: 'ユーザー'
   }
 };
 
