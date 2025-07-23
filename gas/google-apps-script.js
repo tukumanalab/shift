@@ -13,18 +13,8 @@ function getCalendarId() {
   return calendarId;
 }
 
-// 初期設定関数：カレンダーIDをプロパティに設定
-// 使用方法：
-// 1. Google Apps Scriptエディタでこの関数を実行
-// 2. または、gas/config.jsのCALENDAR_IDを変更した後、setCalendarIdWithValue('新しいID')を実行
-function setCalendarId() {
-  const properties = PropertiesService.getScriptProperties();
-  const calendarId = 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com';
-  properties.setProperty('CALENDAR_ID', calendarId);
-  Logger.log('CALENDAR_IDを設定しました: ' + calendarId);
-}
-
-// カレンダーIDを直接指定して設定する関数
+// カレンダーIDを設定する関数
+// 使用方法: setCalendarIdWithValue('新しいカレンダーID')
 function setCalendarIdWithValue(calendarId) {
   const properties = PropertiesService.getScriptProperties();
   properties.setProperty('CALENDAR_ID', calendarId);
