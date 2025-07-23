@@ -313,7 +313,7 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     editMode.appendChild(controls);
                     cell.appendChild(editMode);
                 } else if (isRequestMode) {
-                    // シフト申請モードの場合は人数表示
+                    // シフト申請モードの場合は時間枠を直接表示
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
                     
                     const requestInfo = document.createElement('div');
@@ -327,17 +327,58 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     capacityInfo.innerHTML = `<span class="capacity-number">${getDefaultCapacity(dayOfWeek)}</span><span class="capacity-unit">人</span>`;
                     requestInfo.appendChild(capacityInfo);
                     
-                    // 申請ボタン（0人の日は無効化）
-                    const applyBtn = document.createElement('button');
-                    applyBtn.className = 'shift-apply-btn';
-                    applyBtn.textContent = '申請';
-                    applyBtn.onclick = () => applyForShift(dateKey, currentDate);
+                    const timeSlotsContainer = document.createElement('div');
+                    timeSlotsContainer.className = 'inline-time-slots';
+                    timeSlotsContainer.id = `timeslots-${dateKey}`;
                     
-                    // 0人の日は申請不可
-                    if (getDefaultCapacity(dayOfWeek) === 0) {
-                        applyBtn.disabled = true;
-                        applyBtn.title = 'この日はシフト募集がありません';
+                    // 時間枠を生成（13:00-18:00、30分単位）
+                    const startHour = 13;
+                    const endHour = 18;
+                    const slots = [];
+                    
+                    for (let hour = startHour; hour < endHour; hour++) {
+                        slots.push(`${hour}:00 - ${hour}:30`);
+                        slots.push(`${hour}:30 - ${hour + 1}:00`);
                     }
+                    
+                    slots.forEach(slot => {
+                        const slotDiv = document.createElement('div');
+                        slotDiv.className = 'inline-time-slot';
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = `slot-${dateKey}-${slot.replace(/[:\s-]/g, '')}`;
+                        checkbox.value = slot;
+                        checkbox.className = 'inline-time-slot-checkbox';
+                        checkbox.onchange = () => handleTimeSlotSelection(dateKey, slot, checkbox.checked);
+                        
+                        const label = document.createElement('label');
+                        label.htmlFor = checkbox.id;
+                        label.className = 'inline-time-slot-label';
+                        // 時間表示を短縮（例: "13:00 - 13:30" → "13:00-30"）
+                        const shortTime = slot.replace(/(\d+):(\d+) - \d+:(\d+)/, '$1:$2-$3');
+                        label.textContent = shortTime;
+                        
+                        const capacityInfo = document.createElement('span');
+                        capacityInfo.className = 'inline-time-slot-capacity';
+                        capacityInfo.id = `capacity-${dateKey}-${slot.replace(/[:\s-]/g, '')}`;
+                        capacityInfo.textContent = '(1/1)';
+                        
+                        slotDiv.appendChild(checkbox);
+                        slotDiv.appendChild(label);
+                        slotDiv.appendChild(capacityInfo);
+                        timeSlotsContainer.appendChild(slotDiv);
+                    });
+                    
+                    requestInfo.appendChild(timeSlotsContainer);
+                    
+                    // 申請ボタン
+                    const applyBtn = document.createElement('button');
+                    applyBtn.className = 'inline-apply-btn';
+                    applyBtn.textContent = '申請';
+                    applyBtn.id = `apply-${dateKey}`;
+                    applyBtn.onclick = () => submitInlineShiftRequest(dateKey, currentDate);
+                    applyBtn.disabled = true; // 最初は無効化
                     
                     requestInfo.appendChild(applyBtn);
                     
@@ -869,7 +910,6 @@ async function loadShiftRequestForm() {
         // 人数データとシフト申請数をカレンダーに反映
         if (capacityData && capacityData.length > 0) {
             displayCapacityWithCountsOnCalendar(capacityData, shiftCounts);
-            updateShiftRequestButtons(capacityData, shiftCounts);
         }
         
     } catch (error) {
@@ -940,56 +980,86 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
         }
     });
     
-    // 各日付の人数表示を更新（現在申請数/最大人数の形式）
-    Object.keys(capacityMap).forEach(dateKey => {
-        const capacityElement = document.getElementById(`capacity-${dateKey}`);
-        if (capacityElement) {
-            const maxCapacity = capacityMap[dateKey];
-            const currentCount = shiftCounts[dateKey] || 0;
-            const remainingCount = Math.max(0, maxCapacity - currentCount);
+    // 表示されているすべての日付の時間枠を更新
+    const allDateElements = document.querySelectorAll('[data-date]');
+    allDateElements.forEach(element => {
+        const dateKey = element.getAttribute('data-date');
+        if (dateKey) {
+            // 時間枠ごとの容量を更新
+            updateInlineTimeSlotCapacity(dateKey, shiftCounts);
             
-            // 色の条件分岐
-            let colorClass = '';
-            if (remainingCount === 0 && maxCapacity > 0) {
-                colorClass = ' capacity-full';
-            } else if (remainingCount === 1 && maxCapacity > 1) {
-                colorClass = ' capacity-warning';
+            // 日付全体の表示を更新（利用可能な時間枠数で計算）
+            const capacityElement = document.getElementById(`capacity-${dateKey}`);
+            if (capacityElement) {
+                // 時間枠ごとの利用可能数を計算（13:00-18:00、30分単位で10枠）
+                const startHour = 13;
+                const endHour = 18;
+                const slots = [];
+                
+                for (let hour = startHour; hour < endHour; hour++) {
+                    slots.push(`${hour}:00 - ${hour}:30`);
+                    slots.push(`${hour}:30 - ${hour + 1}:00`);
+                }
+                
+                let availableSlots = 0;
+                let totalSlots = slots.length;
+                
+                slots.forEach(slot => {
+                    const currentCount = (shiftCounts[dateKey] && shiftCounts[dateKey][slot]) || 0;
+                    const maxCapacity = 1; // 各枠1人まで
+                    const remainingCount = Math.max(0, maxCapacity - currentCount);
+                    if (remainingCount > 0) {
+                        availableSlots++;
+                    }
+                });
+                
+                // 色の条件分岐
+                let colorClass = '';
+                if (availableSlots === 0 && totalSlots > 0) {
+                    colorClass = ' capacity-full';
+                } else if (availableSlots === 1 && totalSlots > 1) {
+                    colorClass = ' capacity-warning';
+                }
+                
+                capacityElement.innerHTML = `<span class="capacity-number${colorClass}">${availableSlots}/${totalSlots}</span><span class="capacity-unit">枠</span>`;
             }
-            
-            capacityElement.innerHTML = `<span class="capacity-number${colorClass}">${remainingCount}/${maxCapacity}</span><span class="capacity-unit">人</span>`;
         }
     });
 }
 
-function updateShiftRequestButtons(capacityData, shiftCounts = {}) {
-    // 人数設定データを日付をキーとするマップに変換
-    const capacityMap = {};
-    capacityData.forEach(item => {
-        if (item.date && item.date !== '') {
-            capacityMap[item.date] = item.capacity;
-        }
-    });
+function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}) {
+    // 13:00から18:00まで、30分単位で時間枠を生成
+    const startHour = 13;
+    const endHour = 18;
+    const slots = [];
     
-    // 各日付の申請ボタンを更新
-    Object.keys(capacityMap).forEach(dateKey => {
-        const requestElement = document.getElementById(`request-${dateKey}`);
-        if (requestElement) {
-            const applyBtn = requestElement.querySelector('.shift-apply-btn');
-            if (applyBtn) {
-                const maxCapacity = capacityMap[dateKey];
-                const currentCount = shiftCounts[dateKey] || 0;
-                const remainingCount = Math.max(0, maxCapacity - currentCount);
-                
-                if (maxCapacity === 0) {
-                    applyBtn.disabled = true;
-                    applyBtn.title = 'この日はシフト募集がありません';
-                } else if (remainingCount === 0) {
-                    applyBtn.disabled = true;
-                    applyBtn.title = 'この日のシフトは満員です';
-                } else {
-                    applyBtn.disabled = false;
-                    applyBtn.title = `残り ${remainingCount} 人募集中`;
-                }
+    for (let hour = startHour; hour < endHour; hour++) {
+        slots.push(`${hour}:00 - ${hour}:30`);
+        slots.push(`${hour}:30 - ${hour + 1}:00`);
+    }
+    
+    slots.forEach(slot => {
+        const capacityElement = document.getElementById(`capacity-${dateKey}-${slot.replace(/[:\s-]/g, '')}`);
+        const checkboxElement = document.getElementById(`slot-${dateKey}-${slot.replace(/[:\s-]/g, '')}`);
+        
+        if (capacityElement && checkboxElement) {
+            // その日付・時間枠の現在の申請数を取得
+            const currentCount = (shiftCounts[dateKey] && shiftCounts[dateKey][slot]) || 0;
+            const maxCapacity = 1; // 30分枠は1人まで
+            const remainingCount = Math.max(0, maxCapacity - currentCount);
+            
+            // 表示を更新
+            capacityElement.textContent = `(${remainingCount}/${maxCapacity})`;
+            
+            // 満員の場合はチェックボックスを無効化
+            if (remainingCount === 0) {
+                checkboxElement.disabled = true;
+                capacityElement.style.color = '#dc3545'; // 赤色
+                checkboxElement.parentElement.style.opacity = '0.6';
+            } else {
+                checkboxElement.disabled = false;
+                capacityElement.style.color = '#666'; // 通常色
+                checkboxElement.parentElement.style.opacity = '1';
             }
         }
     });
@@ -999,6 +1069,90 @@ let currentShiftRequestDate = null;
 let currentShiftRequestDateObj = null;
 let currentShiftCapacity = 0;
 let currentShiftCounts = {};
+let selectedTimeSlots = {}; // 日付ごとの選択された時間枠を管理
+
+function handleTimeSlotSelection(dateKey, slot, isChecked) {
+    if (!selectedTimeSlots[dateKey]) {
+        selectedTimeSlots[dateKey] = [];
+    }
+    
+    if (isChecked) {
+        if (!selectedTimeSlots[dateKey].includes(slot)) {
+            selectedTimeSlots[dateKey].push(slot);
+        }
+    } else {
+        selectedTimeSlots[dateKey] = selectedTimeSlots[dateKey].filter(s => s !== slot);
+    }
+    
+    // 申請ボタンの有効/無効を切り替え
+    const applyBtn = document.getElementById(`apply-${dateKey}`);
+    if (applyBtn) {
+        applyBtn.disabled = selectedTimeSlots[dateKey].length === 0;
+    }
+}
+
+async function submitInlineShiftRequest(dateKey, dateObj) {
+    if (!currentUser) {
+        alert('ログインが必要です。');
+        return;
+    }
+    
+    const selectedSlots = selectedTimeSlots[dateKey] || [];
+    if (selectedSlots.length === 0) {
+        alert('時間枠を選択してください。');
+        return;
+    }
+    
+    // ボタンを無効化
+    const submitBtn = document.getElementById(`apply-${dateKey}`);
+    submitBtn.disabled = true;
+    submitBtn.textContent = '申請中...';
+    
+    try {
+        // 各時間枠について申請を送信
+        for (const slot of selectedSlots) {
+            const shiftData = {
+                type: 'shift',
+                userId: currentUser.sub,
+                userName: currentUser.name,
+                userEmail: currentUser.email,
+                date: dateKey,
+                time: slot,
+                content: '通常業務' // デフォルトの内容
+            };
+            
+            const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                mode: 'no-cors',
+                body: JSON.stringify(shiftData)
+            });
+            
+            // no-corsモードでは詳細なレスポンスを取得できないため、
+            // 少し待ってから次の申請を送信
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        alert(`${selectedSlots.length}つの時間枠でシフト申請を送信しました。`);
+        
+        // 選択をクリア
+        selectedTimeSlots[dateKey] = [];
+        const checkboxes = document.querySelectorAll(`input[id^="slot-${dateKey}-"]`);
+        checkboxes.forEach(cb => cb.checked = false);
+        
+        // データを再読み込み
+        await loadShiftRequestForm();
+        
+    } catch (error) {
+        console.error('シフト申請の送信に失敗しました:', error);
+        alert('シフト申請の送信に失敗しました。もう一度お試しください。');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '申請';
+    }
+}
 
 function applyForShift(dateKey, dateObj) {
     if (!currentUser) {
