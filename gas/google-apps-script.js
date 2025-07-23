@@ -447,10 +447,10 @@ function saveUserData(spreadsheet, userData) {
 function loadUserShifts(spreadsheet, userId) {
   try {
     // 「シフト」シートを取得
-    const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
     
     if (!shiftSheet) {
-      Logger.log(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
+      Logger.log(`「シフト」シートが見つかりません`);
       return [];
     }
     
@@ -510,10 +510,10 @@ function loadUserShifts(spreadsheet, userId) {
 function loadShiftCounts(spreadsheet) {
   try {
     // 「シフト」シートを取得
-    const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
     
     if (!shiftSheet) {
-      Logger.log(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
+      Logger.log(`「シフト」シートが見つかりません`);
       return {};
     }
     
@@ -624,10 +624,10 @@ function testLoadShiftCounts() {
 function syncAllShiftsToCalendar() {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
     
     if (!shiftSheet) {
-      throw new Error(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
+      throw new Error(`「シフト」シートが見つかりません`);
     }
     
     // カレンダーを取得
