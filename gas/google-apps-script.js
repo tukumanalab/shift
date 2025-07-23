@@ -49,16 +49,69 @@ function doGet(e) {
       const shiftCounts = loadShiftCounts(spreadsheet);
       
       // デバッグ: doGetでのデータ確認
-      Logger.log('doGet内でのshiftCounts:', JSON.stringify(shiftCounts));
+      Logger.log('doGet内でのshiftCounts型:', typeof shiftCounts);
+      Logger.log('doGet内でのshiftCountsキー:', Object.keys(shiftCounts));
+      
       if (shiftCounts['2025-07-23']) {
-        Logger.log('doGet内での2025-07-23:', typeof shiftCounts['2025-07-23'], JSON.stringify(shiftCounts['2025-07-23']));
+        Logger.log('doGet内での2025-07-23の型:', typeof shiftCounts['2025-07-23']);
+        Logger.log('doGet内での2025-07-23のキー:', Object.keys(shiftCounts['2025-07-23']));
+        
+        // 手動でオブジェクトの内容を確認
+        const dateData = shiftCounts['2025-07-23'];
+        for (const timeSlot in dateData) {
+          Logger.log(`  時間枠: "${timeSlot}" = ${dateData[timeSlot]}`);
+        }
       }
       
-      const result = {success: true, data: shiftCounts};
-      Logger.log('最終的に返すJSON:', JSON.stringify(result));
+      // 手動でJSONを構築
+      let jsonStr = '{"success":true,"data":{';
+      const dateKeys = Object.keys(shiftCounts);
+      Logger.log('JSON構築: dateKeys =', dateKeys.length > 0 ? dateKeys[0] : 'なし');
+      
+      for (let i = 0; i < dateKeys.length; i++) {
+        const dateKey = dateKeys[i];
+        const dateData = shiftCounts[dateKey];
+        Logger.log(`JSON構築: 処理中の日付 = ${dateKey}, データ型 = ${typeof dateData}`);
+        
+        jsonStr += `"${dateKey}":{`;
+        
+        if (typeof dateData === 'object' && dateData !== null) {
+          const timeSlotKeys = Object.keys(dateData);
+          Logger.log(`JSON構築: ${dateKey}の時間枠数 = ${timeSlotKeys.length}`);
+          
+          for (let j = 0; j < timeSlotKeys.length; j++) {
+            const timeSlot = timeSlotKeys[j];
+            const count = dateData[timeSlot];
+            Logger.log(`JSON構築: 時間枠 "${timeSlot}" = ${count}`);
+            
+            jsonStr += `"${timeSlot}":${count}`;
+            if (j < timeSlotKeys.length - 1) {
+              jsonStr += ',';
+            }
+          }
+        } else {
+          Logger.log(`JSON構築: エラー - ${dateKey}がオブジェクトではありません: ${dateData}`);
+          // dateDataが数値の場合の緊急対応
+          jsonStr += `"unknown":${dateData}`;
+        }
+        
+        jsonStr += '}';
+        if (i < dateKeys.length - 1) {
+          jsonStr += ',';
+        }
+      }
+      
+      jsonStr += '}}';
+      
+      Logger.log('手動構築したJSON長さ:', jsonStr.length);
+      Logger.log('手動構築したJSON最初の100文字:', jsonStr.substring(0, 100));
+      
+      // テスト用：固定のネストされたJSONを返す
+      const testJson = '{"success":true,"data":{"2025-07-23":{"13:00-13:30":1,"test":"value"}}}';
+      Logger.log('テスト用固定JSON:', testJson);
       
       return ContentService
-        .createTextOutput(JSON.stringify(result))
+        .createTextOutput(testJson)
         .setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -596,11 +649,26 @@ function loadShiftCounts(spreadsheet) {
       }
     });
     Logger.log(`${Object.keys(shiftCounts).length}日分、${totalSlots}個の時間枠でシフト申請数を集計しました`);
-    Logger.log('返すshiftCounts:', JSON.stringify(shiftCounts));
     
     // 特定の日付の詳細をログ出力
     if (shiftCounts['2025-07-23']) {
-      Logger.log('2025-07-23の返す前の詳細:', typeof shiftCounts['2025-07-23'], JSON.stringify(shiftCounts['2025-07-23']));
+      Logger.log('2025-07-23の返す前の詳細:');
+      Logger.log('  型:', typeof shiftCounts['2025-07-23']);
+      Logger.log('  キー:', Object.keys(shiftCounts['2025-07-23']));
+      
+      const dateData = shiftCounts['2025-07-23'];
+      for (const timeSlot in dateData) {
+        Logger.log(`  値: "${timeSlot}" = ${dateData[timeSlot]} (型: ${typeof dateData[timeSlot]})`);
+      }
+    }
+    
+    // shiftCountsオブジェクト全体の構造確認
+    Logger.log('shiftCountsの構造確認:');
+    for (const dateKey in shiftCounts) {
+      Logger.log(`  日付: ${dateKey}, 型: ${typeof shiftCounts[dateKey]}`);
+      if (typeof shiftCounts[dateKey] === 'object' && shiftCounts[dateKey] !== null) {
+        Logger.log(`    キー数: ${Object.keys(shiftCounts[dateKey]).length}`);
+      }
     }
     
     return shiftCounts;
@@ -611,10 +679,41 @@ function loadShiftCounts(spreadsheet) {
   }
 }
 
+// doGetのテスト関数
+function testDoGet() {
+  Logger.log('=== doGetテスト開始 ===');
+  const mockEvent = {
+    parameter: {
+      type: 'loadShiftCounts'
+    }
+  };
+  const result = doGet(mockEvent);
+  Logger.log('doGetの結果:', result.getContent());
+  Logger.log('=== doGetテスト終了 ===');
+}
+
 // デバッグ用のテスト関数
 function testLoadShiftCounts() {
   Logger.log('=== テスト関数開始 ===');
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // シートの存在確認
+  const shiftSheet = spreadsheet.getSheetByName('シフト');
+  Logger.log('シフトシートが見つかりました:', shiftSheet !== null);
+  
+  if (shiftSheet) {
+    // データの確認
+    const data = shiftSheet.getDataRange().getValues();
+    Logger.log('データ行数:', data.length);
+    Logger.log('ヘッダー行:', JSON.stringify(data[0]));
+    
+    // データ行の例（最初の5行）
+    for (let i = 1; i < Math.min(6, data.length); i++) {
+      Logger.log(`データ行${i}:`, JSON.stringify(data[i]));
+      Logger.log(`  E列(日付): "${data[i][4]}", F列(時間帯): "${data[i][5]}"`);
+    }
+  }
+  
   const result = loadShiftCounts(spreadsheet);
   Logger.log('=== テスト関数終了 ===');
   Logger.log('結果:', JSON.stringify(result));
