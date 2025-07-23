@@ -4,12 +4,10 @@
 // 設定値をプロパティサービスから取得
 function getCalendarId() {
   const properties = PropertiesService.getScriptProperties();
-  let calendarId = properties.getProperty('CALENDAR_ID');
+  const calendarId = properties.getProperty('CALENDAR_ID');
   
-  // プロパティが設定されていない場合のデフォルト値
   if (!calendarId) {
-    calendarId = 'c_38f4c593fd5ee73437c6f3713732aed83d3a47b310306281abbe5cf71f190038@group.calendar.google.com';
-    Logger.log('CALENDAR_IDが設定されていないため、デフォルト値を使用します: ' + calendarId);
+    throw new Error('CALENDAR_IDが設定されていません。setCalendarId()関数を実行して設定してください。');
   }
   
   return calendarId;
