@@ -1,6 +1,21 @@
 // Google Apps Script用のJavaScriptコード
 // このファイルをGoogle Apps Scriptエディタにコピー&ペーストしてください
 
+// 設定値
+const GAS_CONFIG = {
+  SHEET_NAMES: {
+    USERS: 'ユーザー',
+    SHIFTS: 'シフト',
+    CAPACITY: '人数設定'
+  },
+  CALENDAR_ID: 'tukumanalab@gmail.com',
+  DEFAULT_CAPACITY: {
+    WEEKDAY: 3,    // 月火木金
+    WEDNESDAY: 2,  // 水曜日
+    WEEKEND: 0     // 土日
+  }
+};
+
 function doGet(e) {
   try {
     const params = e.parameter;
