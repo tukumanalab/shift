@@ -106,12 +106,8 @@ function doGet(e) {
       Logger.log('手動構築したJSON長さ:', jsonStr.length);
       Logger.log('手動構築したJSON最初の100文字:', jsonStr.substring(0, 100));
       
-      // テスト用：固定のネストされたJSONを返す
-      const testJson = '{"success":true,"data":{"2025-07-23":{"13:00-13:30":1,"test":"value"}}}';
-      Logger.log('テスト用固定JSON:', testJson);
-      
       return ContentService
-        .createTextOutput(testJson)
+        .createTextOutput(jsonStr)
         .setMimeType(ContentService.MimeType.JSON);
     }
     
