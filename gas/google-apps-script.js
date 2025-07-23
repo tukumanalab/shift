@@ -28,8 +28,17 @@ function doGet(e) {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const shiftCounts = loadShiftCounts(spreadsheet);
       
+      // デバッグ: doGetでのデータ確認
+      Logger.log('doGet内でのshiftCounts:', JSON.stringify(shiftCounts));
+      if (shiftCounts['2025-07-23']) {
+        Logger.log('doGet内での2025-07-23:', typeof shiftCounts['2025-07-23'], JSON.stringify(shiftCounts['2025-07-23']));
+      }
+      
+      const result = {success: true, data: shiftCounts};
+      Logger.log('最終的に返すJSON:', JSON.stringify(result));
+      
       return ContentService
-        .createTextOutput(JSON.stringify({success: true, data: shiftCounts}))
+        .createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -499,13 +508,18 @@ function loadShiftCounts(spreadsheet) {
     // 日付と時間枠ごとのシフト申請数をカウント
     const shiftCounts = {};
     
-    data.slice(1).forEach(row => {
+    Logger.log(`データ行数: ${data.length - 1}行（ヘッダー除く）`);
+    
+    data.slice(1).forEach((row, index) => {
+      Logger.log(`行 ${index + 2}: ${JSON.stringify(row)}`);
+      
       if (row.length >= 7) {
         let dateStr = '';
         let timeSlot = '';
         try {
           // 日付の形式を統一（E列：シフト日付）
           const dateValue = row[4];
+          Logger.log(`E列の値: ${dateValue}, 型: ${typeof dateValue}`);
           if (dateValue instanceof Date) {
             dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
           } else if (typeof dateValue === 'string') {
@@ -514,30 +528,60 @@ function loadShiftCounts(spreadsheet) {
           
           // 時間枠（F列）
           timeSlot = row[5] || '';
+          Logger.log(`F列の値: "${timeSlot}", 型: ${typeof timeSlot}`);
         } catch (e) {
           Logger.log('データの変換に失敗しました: ' + e.toString());
         }
         
         if (dateStr && timeSlot) {
+          Logger.log(`処理中: 日付=${dateStr}, 時間枠="${timeSlot}"`);
+          
+          // 現在のshiftCountsの状態をログ出力
+          Logger.log(`現在のshiftCounts[${dateStr}]:`, JSON.stringify(shiftCounts[dateStr]));
+          
           // 日付をキーとしたオブジェクトを初期化
           if (!shiftCounts[dateStr]) {
             shiftCounts[dateStr] = {};
+            Logger.log(`新しい日付 ${dateStr} を初期化`);
           }
+          
+          // オブジェクトかどうか確認
+          if (typeof shiftCounts[dateStr] !== 'object' || shiftCounts[dateStr] === null) {
+            Logger.log(`警告: shiftCounts[${dateStr}]がオブジェクトではありません:`, typeof shiftCounts[dateStr], shiftCounts[dateStr]);
+            shiftCounts[dateStr] = {};
+          }
+          
           // 時間枠ごとのカウントを初期化
           if (!shiftCounts[dateStr][timeSlot]) {
             shiftCounts[dateStr][timeSlot] = 0;
+            Logger.log(`新しい時間枠 ${dateStr} "${timeSlot}" を初期化`);
           }
           shiftCounts[dateStr][timeSlot]++;
+          Logger.log(`${dateStr} "${timeSlot}" のカウントを ${shiftCounts[dateStr][timeSlot]} に更新`);
+          Logger.log(`更新後のshiftCounts[${dateStr}]:`, JSON.stringify(shiftCounts[dateStr]));
         }
       }
     });
     
-    // ログ出力
+    // ログ出力とデバッグ
     let totalSlots = 0;
     Object.keys(shiftCounts).forEach(date => {
       totalSlots += Object.keys(shiftCounts[date]).length;
+      // 2025-07-23の詳細をログ出力
+      if (date === '2025-07-23') {
+        Logger.log(`デバッグ - ${date}の時間枠:`, JSON.stringify(shiftCounts[date]));
+        Object.keys(shiftCounts[date]).forEach(timeSlot => {
+          Logger.log(`  時間枠: "${timeSlot}" = ${shiftCounts[date][timeSlot]}`);
+        });
+      }
     });
     Logger.log(`${Object.keys(shiftCounts).length}日分、${totalSlots}個の時間枠でシフト申請数を集計しました`);
+    Logger.log('返すshiftCounts:', JSON.stringify(shiftCounts));
+    
+    // 特定の日付の詳細をログ出力
+    if (shiftCounts['2025-07-23']) {
+      Logger.log('2025-07-23の返す前の詳細:', typeof shiftCounts['2025-07-23'], JSON.stringify(shiftCounts['2025-07-23']));
+    }
     
     return shiftCounts;
     
@@ -545,6 +589,16 @@ function loadShiftCounts(spreadsheet) {
     Logger.log('シフト申請数の読み込みに失敗しました: ' + error.toString());
     return {};
   }
+}
+
+// デバッグ用のテスト関数
+function testLoadShiftCounts() {
+  Logger.log('=== テスト関数開始 ===');
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const result = loadShiftCounts(spreadsheet);
+  Logger.log('=== テスト関数終了 ===');
+  Logger.log('結果:', JSON.stringify(result));
+  return result;
 }
 
 function syncAllShiftsToCalendar() {
