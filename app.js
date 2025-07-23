@@ -337,37 +337,35 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     const slots = [];
                     
                     for (let hour = startHour; hour < endHour; hour++) {
-                        slots.push(`${hour}:00 - ${hour}:30`);
-                        slots.push(`${hour}:30 - ${hour + 1}:00`);
+                        slots.push(`${hour}:00-${hour}:30`);
+                        slots.push(`${hour}:30-${hour + 1}:00`);
                     }
                     
                     slots.forEach(slot => {
                         const slotDiv = document.createElement('div');
                         slotDiv.className = 'inline-time-slot';
+                        slotDiv.id = `slot-${dateKey}-${slot.replace(/[:-]/g, '')}`;
+                        slotDiv.dataset.slot = slot;
+                        slotDiv.dataset.selected = 'false';
                         
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.id = `slot-${dateKey}-${slot.replace(/[:\s-]/g, '')}`;
-                        checkbox.value = slot;
-                        checkbox.className = 'inline-time-slot-checkbox';
-                        checkbox.onchange = () => handleTimeSlotSelection(dateKey, slot, checkbox.checked);
-                        
-                        const label = document.createElement('label');
-                        label.htmlFor = checkbox.id;
-                        label.className = 'inline-time-slot-label';
-                        // 時間表示を短縮（例: "13:00 - 13:30" → "13:00-30"）
-                        const shortTime = slot.replace(/(\d+):(\d+) - \d+:(\d+)/, '$1:$2-$3');
-                        label.textContent = shortTime;
+                        // トグル式ラベル（クリック可能）
+                        const timeLabel = document.createElement('span');
+                        timeLabel.className = 'inline-time-label';
+                        // 時間表示を短縮（例: "13:00-13:30" → "13:00-30"）
+                        const shortTime = slot.replace(/(\d+):(\d+)-(\d+):(\d+)/, '$1:$2-$4');
+                        timeLabel.textContent = shortTime;
                         
                         const capacityInfo = document.createElement('span');
                         capacityInfo.className = 'inline-time-slot-capacity';
-                        capacityInfo.id = `capacity-${dateKey}-${slot.replace(/[:\s-]/g, '')}`;
+                        capacityInfo.id = `capacity-${dateKey}-${slot.replace(/[:-]/g, '')}`;
                         // デフォルト容量を使用（後でupdateInlineTimeSlotCapacityで正しい値に更新される）
                         const defaultCapacity = getDefaultCapacity(dayOfWeek);
-                        capacityInfo.textContent = `(${defaultCapacity}/${defaultCapacity})`;
+                        capacityInfo.textContent = `${defaultCapacity}`;
                         
-                        slotDiv.appendChild(checkbox);
-                        slotDiv.appendChild(label);
+                        // クリックイベントでトグル
+                        slotDiv.onclick = () => handleTimeSlotToggle(dateKey, slot, slotDiv);
+                        
+                        slotDiv.appendChild(timeLabel);
                         slotDiv.appendChild(capacityInfo);
                         timeSlotsContainer.appendChild(slotDiv);
                     });
@@ -1015,8 +1013,8 @@ function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}, capacityMap = {
     const slots = [];
     
     for (let hour = startHour; hour < endHour; hour++) {
-        slots.push(`${hour}:00 - ${hour}:30`);
-        slots.push(`${hour}:30 - ${hour + 1}:00`);
+        slots.push(`${hour}:00-${hour}:30`);
+        slots.push(`${hour}:30-${hour + 1}:00`);
     }
     
     // その日付の最大容量を取得（設定がない場合はデフォルト値を使用）
@@ -1029,27 +1027,42 @@ function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}, capacityMap = {
     }
     
     slots.forEach(slot => {
-        const capacityElement = document.getElementById(`capacity-${dateKey}-${slot.replace(/[:\s-]/g, '')}`);
-        const checkboxElement = document.getElementById(`slot-${dateKey}-${slot.replace(/[:\s-]/g, '')}`);
+        const capacityElement = document.getElementById(`capacity-${dateKey}-${slot.replace(/[:-]/g, '')}`);
+        const slotElement = document.getElementById(`slot-${dateKey}-${slot.replace(/[:-]/g, '')}`);
         
-        if (capacityElement && checkboxElement) {
+        if (capacityElement && slotElement) {
             // その日付・時間枠の現在の申請数を取得
             const currentCount = (shiftCounts[dateKey] && shiftCounts[dateKey][slot]) || 0;
+            
+            // デバッグ: 最初の日付の最初のスロットのみログ出力
+            if (dateKey === '2025-07-23' && slot === '13:00-13:30') {
+                console.log(`デバッグ: ${dateKey} ${slot} - 申請数: ${currentCount}`);
+                console.log('shiftCounts全体:', shiftCounts);
+                console.log('shiftCounts[dateKey]:', shiftCounts[dateKey]);
+                console.log('slot:', slot);
+                console.log('shiftCounts[dateKey][slot]:', shiftCounts[dateKey] && shiftCounts[dateKey][slot]);
+                console.log('shiftCounts[dateKey]のキー一覧:', shiftCounts[dateKey] ? Object.keys(shiftCounts[dateKey]) : 'なし');
+            }
+            
             const maxCapacity = maxCapacityForDate; // その日の設定人数が各時間枠の最大人数
             const remainingCount = Math.max(0, maxCapacity - currentCount);
             
-            // 表示を更新
-            capacityElement.textContent = `(${remainingCount}/${maxCapacity})`;
+            capacityElement.textContent = remainingCount;
             
-            // 満員の場合はチェックボックスを無効化
+            // 残り人数に応じてクラスを設定（色分け用）
+            capacityElement.className = 'inline-time-slot-capacity';
             if (remainingCount === 0) {
-                checkboxElement.disabled = true;
-                capacityElement.style.color = '#dc3545'; // 赤色
-                checkboxElement.parentElement.style.opacity = '0.6';
+                capacityElement.classList.add('capacity-zero');
+                slotElement.classList.add('disabled');
+            } else if (remainingCount === 1) {
+                capacityElement.classList.add('capacity-low');
+                slotElement.classList.remove('disabled');
+            } else if (remainingCount <= maxCapacity / 2) {
+                capacityElement.classList.add('capacity-medium');
+                slotElement.classList.remove('disabled');
             } else {
-                checkboxElement.disabled = false;
-                capacityElement.style.color = '#666'; // 通常色
-                checkboxElement.parentElement.style.opacity = '1';
+                capacityElement.classList.add('capacity-high');
+                slotElement.classList.remove('disabled');
             }
         }
     });
@@ -1061,23 +1074,47 @@ let currentShiftCapacity = 0;
 let currentShiftCounts = {};
 let selectedTimeSlots = {}; // 日付ごとの選択された時間枠を管理
 
-function handleTimeSlotSelection(dateKey, slot, isChecked) {
+function handleTimeSlotToggle(dateKey, slot, slotElement) {
+    console.log('handleTimeSlotToggle called:', dateKey, slot, slotElement);
+    
+    // 残り容量が0の場合は選択不可
+    if (slotElement.classList.contains('disabled')) {
+        console.log('スロットが無効化されています');
+        return;
+    }
+    
     if (!selectedTimeSlots[dateKey]) {
         selectedTimeSlots[dateKey] = [];
     }
     
-    if (isChecked) {
+    const isCurrentlySelected = slotElement.dataset.selected === 'true';
+    console.log('現在の選択状態:', isCurrentlySelected);
+    
+    if (isCurrentlySelected) {
+        // 選択解除
+        console.log('選択解除中...');
+        slotElement.dataset.selected = 'false';
+        slotElement.classList.remove('selected');
+        const index = selectedTimeSlots[dateKey].indexOf(slot);
+        if (index > -1) {
+            selectedTimeSlots[dateKey].splice(index, 1);
+        }
+        console.log('選択解除完了、クラス:', slotElement.className);
+    } else {
+        // 選択
+        console.log('選択中...');
+        slotElement.dataset.selected = 'true';
+        slotElement.classList.add('selected');
         if (!selectedTimeSlots[dateKey].includes(slot)) {
             selectedTimeSlots[dateKey].push(slot);
         }
-    } else {
-        selectedTimeSlots[dateKey] = selectedTimeSlots[dateKey].filter(s => s !== slot);
+        console.log('選択完了、クラス:', slotElement.className);
     }
     
-    // 申請ボタンの有効/無効を切り替え
+    // 申請ボタンの状態を更新
     const applyBtn = document.getElementById(`apply-${dateKey}`);
     if (applyBtn) {
-        applyBtn.disabled = selectedTimeSlots[dateKey].length === 0;
+        applyBtn.disabled = !selectedTimeSlots[dateKey] || selectedTimeSlots[dateKey].length === 0;
     }
 }
 
@@ -1129,8 +1166,11 @@ async function submitInlineShiftRequest(dateKey, dateObj) {
         
         // 選択をクリア
         selectedTimeSlots[dateKey] = [];
-        const checkboxes = document.querySelectorAll(`input[id^="slot-${dateKey}-"]`);
-        checkboxes.forEach(cb => cb.checked = false);
+        const slots = document.querySelectorAll(`div[id^="slot-${dateKey}-"]`);
+        slots.forEach(slot => {
+            slot.classList.remove('selected');
+            slot.dataset.selected = 'false';
+        });
         
         // データを再読み込み
         await loadShiftRequestForm();
@@ -1200,8 +1240,8 @@ function updateTimeSlotCapacity(dateKey) {
     const slots = [];
     
     for (let hour = startHour; hour < endHour; hour++) {
-        slots.push(`${hour}:00 - ${hour}:30`);
-        slots.push(`${hour}:30 - ${hour + 1}:00`);
+        slots.push(`${hour}:00-${hour}:30`);
+        slots.push(`${hour}:30-${hour + 1}:00`);
     }
     
     slots.forEach(slot => {
@@ -1244,8 +1284,8 @@ function generateTimeSlots(container) {
     const slots = [];
     
     for (let hour = startHour; hour < endHour; hour++) {
-        slots.push(`${hour}:00 - ${hour}:30`);
-        slots.push(`${hour}:30 - ${hour + 1}:00`);
+        slots.push(`${hour}:00-${hour}:30`);
+        slots.push(`${hour}:30-${hour + 1}:00`);
     }
     
     // 時間枠のチェックボックスを生成

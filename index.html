@@ -629,25 +629,53 @@
         /* インライン時間枠選択のスタイル */
         .inline-time-slots {
             margin: 4px 0;
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-            max-height: 110px;
-            overflow-y: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 3px;
-            padding: 2px;
-            background: #fafafa;
-            font-size: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3px;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            padding: 4px;
+            background: #f8f8f8;
+            font-size: 9px;
         }
         
         .inline-time-slot {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 2px;
-            padding: 1px;
+            padding: 4px 6px;
             font-size: 10px;
-            min-height: 16px;
+            min-height: 22px;
+            border-radius: 3px;
+            background: #fff;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+            border: 1px solid #ccc;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .inline-time-slot:hover:not(.disabled) {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            box-shadow: 0 2px 4px rgba(33,150,243,0.2);
+        }
+        
+        .inline-time-slot.selected {
+            background: #2196f3;
+            color: white;
+            border-color: #1976d2;
+            box-shadow: 0 2px 4px rgba(25,118,210,0.3);
+        }
+        
+        .inline-time-slot.disabled {
+            background: #f5f5f5;
+            color: #999;
+            cursor: not-allowed;
+            opacity: 0.6;
+            border-color: #ddd;
+            box-shadow: none;
         }
         
         .inline-time-slot-checkbox {
@@ -657,68 +685,109 @@
             flex-shrink: 0;
         }
         
-        .inline-time-slot-label {
+        .inline-time-label {
             flex: 1;
-            font-size: 9px;
+            font-size: 10px;
             white-space: nowrap;
-            margin: 0;
-            cursor: pointer;
-            user-select: none;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-weight: 500;
         }
         
         .inline-time-slot-capacity {
-            font-size: 8px;
-            color: #666;
+            font-size: 9px;
             font-weight: bold;
             flex-shrink: 0;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+        
+        /* 残り人数に応じた色分け */
+        .inline-time-slot-capacity.capacity-zero {
+            background: rgba(244, 67, 54, 0.2);
+            color: #d32f2f;
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+        
+        .inline-time-slot-capacity.capacity-low {
+            background: rgba(255, 193, 7, 0.2);
+            color: #f57c00;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+        
+        .inline-time-slot-capacity.capacity-medium {
+            background: rgba(33, 150, 243, 0.2);
+            color: #1976d2;
+            border: 1px solid rgba(33, 150, 243, 0.3);
+        }
+        
+        .inline-time-slot-capacity.capacity-high {
+            background: rgba(76, 175, 80, 0.2);
+            color: #388e3c;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+        
+        .inline-time-slot.selected .inline-time-slot-capacity {
+            background: rgba(255,255,255,0.9) !important;
+            color: #1976d2 !important;
+            border: 1px solid rgba(255,255,255,0.8) !important;
+        }
+        
+        .inline-time-slot.disabled .inline-time-slot-capacity {
+            background: rgba(158, 158, 158, 0.2) !important;
+            color: #757575 !important;
+            border: 1px solid rgba(158, 158, 158, 0.3) !important;
         }
         
         @media (max-width: 1200px) {
             .inline-time-slots {
-                max-height: 90px;
                 font-size: 9px;
+                gap: 2px;
+                padding: 3px;
             }
             
             .inline-time-slot {
-                min-height: 14px;
+                min-height: 20px;
+                font-size: 9px;
+                padding: 3px 5px;
+            }
+            
+            .inline-time-label {
                 font-size: 9px;
             }
             
-            .inline-time-slot-label {
-                font-size: 8px;
-            }
-            
             .inline-time-slot-capacity {
-                font-size: 7px;
+                font-size: 8px;
+                min-width: 18px;
+                padding: 1px 4px;
             }
         }
         
         @media (max-width: 900px) {
             .inline-time-slots {
-                max-height: 70px;
                 font-size: 8px;
-                gap: 0px;
+                gap: 2px;
+                padding: 2px;
             }
             
             .inline-time-slot {
-                min-height: 12px;
+                min-height: 18px;
                 font-size: 8px;
                 gap: 1px;
+                padding: 3px 4px;
             }
             
-            .inline-time-slot-checkbox {
-                width: 8px;
-                height: 8px;
-            }
-            
-            .inline-time-slot-label {
-                font-size: 7px;
+            .inline-time-label {
+                font-size: 8px;
             }
             
             .inline-time-slot-capacity {
-                font-size: 6px;
+                font-size: 7px;
+                min-width: 16px;
+                padding: 1px 3px;
             }
         }
         
