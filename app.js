@@ -457,6 +457,38 @@ async function fetchCapacityFromSpreadsheet() {
     }
 }
 
+async function fetchShiftCountsFromSpreadsheet() {
+    if (!currentUser) {
+        return {};
+    }
+    
+    try {
+        console.log('シフト申請数を読み込み中...');
+        
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadShiftCounts`, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                console.log('シフト申請数をスプレッドシートから読み込みました:', result.data);
+                return result.data || {};
+            } else {
+                console.error('シフト申請数の読み込みに失敗:', result.error);
+                return {};
+            }
+        } else {
+            console.error('HTTPエラー:', response.status);
+            return {};
+        }
+        
+    } catch (error) {
+        console.error('シフト申請数の読み込みに失敗しました:', error);
+        return {};
+    }
+}
+
 function toggleEditMode(dateKey) {
     const displayElement = document.getElementById(`display-${dateKey}`);
     const editElement = document.getElementById(`edit-${dateKey}`);
@@ -819,8 +851,14 @@ async function loadShiftRequestForm() {
     `;
     
     try {
-        // 人数設定データを読み込み
-        const capacityData = await fetchCapacityFromSpreadsheet();
+        // 人数設定データとシフト申請数を並行して読み込み
+        const [capacityData, shiftCounts] = await Promise.all([
+            fetchCapacityFromSpreadsheet(),
+            fetchShiftCountsFromSpreadsheet()
+        ]);
+        
+        // グローバル変数に保存
+        currentShiftCounts = shiftCounts;
         
         // コンテナをクリアしてカレンダーを生成
         container.innerHTML = '<div id="shiftRequestCalendarContainer" class="calendar-container"></div>';
@@ -828,10 +866,10 @@ async function loadShiftRequestForm() {
         // カレンダーを生成（シフト申請モード）
         generateCalendar('shiftRequestCalendarContainer', false, true);
         
-        // 人数データをカレンダーに反映
+        // 人数データとシフト申請数をカレンダーに反映
         if (capacityData && capacityData.length > 0) {
-            displayCapacityOnCalendar(capacityData);
-            updateShiftRequestButtons(capacityData);
+            displayCapacityWithCountsOnCalendar(capacityData, shiftCounts);
+            updateShiftRequestButtons(capacityData, shiftCounts);
         }
         
     } catch (error) {
@@ -893,8 +931,38 @@ function displayCapacityOnCalendar(capacityData) {
     });
 }
 
-function updateShiftRequestButtons(capacityData) {
-    // データを日付をキーとするマップに変換
+function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
+    // 人数設定データを日付をキーとするマップに変換
+    const capacityMap = {};
+    capacityData.forEach(item => {
+        if (item.date && item.date !== '') {
+            capacityMap[item.date] = item.capacity;
+        }
+    });
+    
+    // 各日付の人数表示を更新（現在申請数/最大人数の形式）
+    Object.keys(capacityMap).forEach(dateKey => {
+        const capacityElement = document.getElementById(`capacity-${dateKey}`);
+        if (capacityElement) {
+            const maxCapacity = capacityMap[dateKey];
+            const currentCount = shiftCounts[dateKey] || 0;
+            const remainingCount = Math.max(0, maxCapacity - currentCount);
+            
+            // 色の条件分岐
+            let colorClass = '';
+            if (remainingCount === 0 && maxCapacity > 0) {
+                colorClass = ' capacity-full';
+            } else if (remainingCount === 1 && maxCapacity > 1) {
+                colorClass = ' capacity-warning';
+            }
+            
+            capacityElement.innerHTML = `<span class="capacity-number${colorClass}">${remainingCount}/${maxCapacity}</span><span class="capacity-unit">人</span>`;
+        }
+    });
+}
+
+function updateShiftRequestButtons(capacityData, shiftCounts = {}) {
+    // 人数設定データを日付をキーとするマップに変換
     const capacityMap = {};
     capacityData.forEach(item => {
         if (item.date && item.date !== '') {
@@ -908,13 +976,19 @@ function updateShiftRequestButtons(capacityData) {
         if (requestElement) {
             const applyBtn = requestElement.querySelector('.shift-apply-btn');
             if (applyBtn) {
-                const capacity = capacityMap[dateKey];
-                if (capacity === 0) {
+                const maxCapacity = capacityMap[dateKey];
+                const currentCount = shiftCounts[dateKey] || 0;
+                const remainingCount = Math.max(0, maxCapacity - currentCount);
+                
+                if (maxCapacity === 0) {
                     applyBtn.disabled = true;
                     applyBtn.title = 'この日はシフト募集がありません';
+                } else if (remainingCount === 0) {
+                    applyBtn.disabled = true;
+                    applyBtn.title = 'この日のシフトは満員です';
                 } else {
                     applyBtn.disabled = false;
-                    applyBtn.title = '';
+                    applyBtn.title = `残り ${remainingCount} 人募集中`;
                 }
             }
         }
@@ -924,6 +998,7 @@ function updateShiftRequestButtons(capacityData) {
 let currentShiftRequestDate = null;
 let currentShiftRequestDateObj = null;
 let currentShiftCapacity = 0;
+let currentShiftCounts = {};
 
 function applyForShift(dateKey, dateObj) {
     if (!currentUser) {
@@ -967,8 +1042,53 @@ function openShiftRequestModal(dateKey, dateObj) {
     // 時間枠を生成
     generateTimeSlots(timeSlotContainer);
     
+    // 時間枠の残り枠数を更新
+    updateTimeSlotCapacity(dateKey);
+    
     // モーダルを表示
     modal.style.display = 'flex';
+}
+
+function updateTimeSlotCapacity(dateKey) {
+    // 13:00から18:00まで、30分単位で時間枠を生成
+    const startHour = 13;
+    const endHour = 18;
+    const slots = [];
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+        slots.push(`${hour}:00 - ${hour}:30`);
+        slots.push(`${hour}:30 - ${hour + 1}:00`);
+    }
+    
+    slots.forEach(slot => {
+        const capacityElement = document.getElementById(`capacity-${slot.replace(/[:\s-]/g, '')}`);
+        const checkboxElement = document.getElementById(`slot-${slot.replace(/[:\s-]/g, '')}`);
+        
+        if (capacityElement && checkboxElement) {
+            // その日付・時間枠の現在の申請数を取得
+            const currentCount = (currentShiftCounts[dateKey] && currentShiftCounts[dateKey][slot]) || 0;
+            const maxCapacity = 1; // 30分枠は1人まで
+            const remainingCount = Math.max(0, maxCapacity - currentCount);
+            
+            // 表示を更新
+            capacityElement.textContent = `(${remainingCount}/${maxCapacity}人)`;
+            
+            // 満員の場合はチェックボックスを無効化
+            if (remainingCount === 0) {
+                checkboxElement.disabled = true;
+                capacityElement.style.color = '#dc3545'; // 赤色
+                checkboxElement.parentElement.style.opacity = '0.6';
+            } else if (remainingCount === 1) {
+                checkboxElement.disabled = false;
+                capacityElement.style.color = '#ffc107'; // 黄色
+                checkboxElement.parentElement.style.opacity = '1';
+            } else {
+                checkboxElement.disabled = false;
+                capacityElement.style.color = '#28a745'; // 緑色
+                checkboxElement.parentElement.style.opacity = '1';
+            }
+        }
+    });
 }
 
 function generateTimeSlots(container) {
@@ -995,13 +1115,24 @@ function generateTimeSlots(container) {
         checkbox.value = slot;
         checkbox.className = 'time-slot-checkbox';
         
+        const labelContainer = document.createElement('div');
+        labelContainer.className = 'time-slot-label-container';
+        
         const label = document.createElement('label');
         label.htmlFor = checkbox.id;
         label.textContent = slot;
         label.className = 'time-slot-label';
         
+        const capacityInfo = document.createElement('span');
+        capacityInfo.className = 'time-slot-capacity';
+        capacityInfo.id = `capacity-${slot.replace(/[:\s-]/g, '')}`;
+        capacityInfo.textContent = '(0/1人)'; // デフォルト値
+        
+        labelContainer.appendChild(label);
+        labelContainer.appendChild(capacityInfo);
+        
         slotDiv.appendChild(checkbox);
-        slotDiv.appendChild(label);
+        slotDiv.appendChild(labelContainer);
         container.appendChild(slotDiv);
     });
 }

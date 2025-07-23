@@ -355,8 +355,9 @@
             color: #333;
         }
         .capacity-number {
-            font-size: 18px;
+            font-size: 16px;
             color: #4285f4;
+            font-weight: bold;
         }
         .capacity-unit {
             font-size: 12px;
@@ -481,6 +482,17 @@
             flex: 1;
             user-select: none;
         }
+        .time-slot-label-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex: 1;
+        }
+        .time-slot-capacity {
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
         #timeSlotContainer {
             border: 1px solid #e0e0e0;
             border-radius: 4px;
@@ -590,6 +602,12 @@
             color: #999;
             font-size: 12px;
             min-width: 80px;
+        }
+        .capacity-full {
+            color: #dc3545 !important;
+        }
+        .capacity-warning {
+            color: #ffc107 !important;
         }
     </style>
 </head>

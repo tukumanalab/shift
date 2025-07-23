@@ -5,3 +5,7 @@ dist/
 .env.production
 config.js
 .DS_Store
+
+# clasp files
+gas/.clasp.json
+gas/appsscript.json

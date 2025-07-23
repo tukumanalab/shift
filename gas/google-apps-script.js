@@ -1,9 +1,6 @@
 // Google Apps Script用のJavaScriptコード
 // このファイルをGoogle Apps Scriptエディタにコピー&ペーストしてください
 
-// カレンダーID（「つくまなバイト2」カレンダーのID）
-const CALENDAR_ID = 'tukumanalab@gmail.com';
-
 function doGet(e) {
   try {
     const params = e.parameter;
@@ -25,6 +22,15 @@ function doGet(e) {
       return ContentService
         .createTextOutput(JSON.stringify({success: true, data: shiftsData}))
         .setMimeType(ContentService.MimeType.JSON);
+        
+    } else if (params.type === 'loadShiftCounts') {
+      // シフト申請数の読み込み
+      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const shiftCounts = loadShiftCounts(spreadsheet);
+      
+      return ContentService
+        .createTextOutput(JSON.stringify({success: true, data: shiftCounts}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     return ContentService
@@ -45,10 +51,10 @@ function doPost(e) {
     
     if (data.type === 'shift') {
       // シフトデータの処理
-      const shiftSheet = spreadsheet.getSheetByName('シフト');
+      const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
       
       if (!shiftSheet) {
-        throw new Error('「シフト」シートが見つかりません');
+        throw new Error(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
       }
       
       // シフトデータを追加
@@ -101,10 +107,10 @@ function doPost(e) {
 function addToCalendar(shiftData) {
   try {
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById(GAS_CONFIG.CALENDAR_ID);
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: ' + CALENDAR_ID);
+      throw new Error('カレンダーが見つかりません: ' + GAS_CONFIG.CALENDAR_ID);
     }
     
     // 日付と時間の解析
@@ -158,10 +164,10 @@ function parseTimeSlot(timeSlot) {
 function loadCapacitySettings(spreadsheet) {
   try {
     // 「人数設定」シートを取得
-    const capacitySheet = spreadsheet.getSheetByName('人数設定');
+    const capacitySheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.CAPACITY);
     
     if (!capacitySheet) {
-      Logger.log('「人数設定」シートが見つかりません');
+      Logger.log(`「${GAS_CONFIG.SHEET_NAMES.CAPACITY}」シートが見つかりません`);
       return [];
     }
     
@@ -210,11 +216,11 @@ function loadCapacitySettings(spreadsheet) {
 function saveCapacitySettings(spreadsheet, capacityData) {
   try {
     // 「人数設定」シートを取得または作成
-    let capacitySheet = spreadsheet.getSheetByName('人数設定');
+    let capacitySheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.CAPACITY);
     
     if (!capacitySheet) {
       // シートが存在しない場合は作成して初期化
-      capacitySheet = spreadsheet.insertSheet('人数設定');
+      capacitySheet = spreadsheet.insertSheet(GAS_CONFIG.SHEET_NAMES.CAPACITY);
       
       // ヘッダー行を追加
       capacitySheet.appendRow([
@@ -267,13 +273,13 @@ function initializeCapacityData(capacitySheet) {
       switch (dayOfWeek) {
         case 0: // 日曜日
         case 6: // 土曜日
-          defaultCapacity = 0;
+          defaultCapacity = GAS_CONFIG.DEFAULT_CAPACITY.WEEKEND;
           break;
         case 3: // 水曜日
-          defaultCapacity = 2;
+          defaultCapacity = GAS_CONFIG.DEFAULT_CAPACITY.WEDNESDAY;
           break;
         default: // 月火木金
-          defaultCapacity = 3;
+          defaultCapacity = GAS_CONFIG.DEFAULT_CAPACITY.WEEKDAY;
           break;
       }
       
@@ -357,11 +363,11 @@ function updateCapacityData(capacitySheet, capacityData) {
 function saveUserData(spreadsheet, userData) {
   try {
     // 「ユーザー」シートを取得または作成
-    let userSheet = spreadsheet.getSheetByName('ユーザー');
+    let userSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.USERS);
     
     if (!userSheet) {
       // シートが存在しない場合は作成
-      userSheet = spreadsheet.insertSheet('ユーザー');
+      userSheet = spreadsheet.insertSheet(GAS_CONFIG.SHEET_NAMES.USERS);
       
       // ヘッダー行を追加
       userSheet.appendRow([
@@ -412,10 +418,10 @@ function saveUserData(spreadsheet, userData) {
 function loadUserShifts(spreadsheet, userId) {
   try {
     // 「シフト」シートを取得
-    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
     
     if (!shiftSheet) {
-      Logger.log('「シフト」シートが見つかりません');
+      Logger.log(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
       return [];
     }
     
@@ -472,20 +478,89 @@ function loadUserShifts(spreadsheet, userId) {
   }
 }
 
+function loadShiftCounts(spreadsheet) {
+  try {
+    // 「シフト」シートを取得
+    const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
+    
+    if (!shiftSheet) {
+      Logger.log(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
+      return {};
+    }
+    
+    // データを取得（ヘッダー行を除く）
+    const data = shiftSheet.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      Logger.log('シフトデータがありません');
+      return {};
+    }
+    
+    // 日付と時間枠ごとのシフト申請数をカウント
+    const shiftCounts = {};
+    
+    data.slice(1).forEach(row => {
+      if (row.length >= 7) {
+        let dateStr = '';
+        let timeSlot = '';
+        try {
+          // 日付の形式を統一（E列：シフト日付）
+          const dateValue = row[4];
+          if (dateValue instanceof Date) {
+            dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          } else if (typeof dateValue === 'string') {
+            dateStr = dateValue;
+          }
+          
+          // 時間枠（F列）
+          timeSlot = row[5] || '';
+        } catch (e) {
+          Logger.log('データの変換に失敗しました: ' + e.toString());
+        }
+        
+        if (dateStr && timeSlot) {
+          // 日付をキーとしたオブジェクトを初期化
+          if (!shiftCounts[dateStr]) {
+            shiftCounts[dateStr] = {};
+          }
+          // 時間枠ごとのカウントを初期化
+          if (!shiftCounts[dateStr][timeSlot]) {
+            shiftCounts[dateStr][timeSlot] = 0;
+          }
+          shiftCounts[dateStr][timeSlot]++;
+        }
+      }
+    });
+    
+    // ログ出力
+    let totalSlots = 0;
+    Object.keys(shiftCounts).forEach(date => {
+      totalSlots += Object.keys(shiftCounts[date]).length;
+    });
+    Logger.log(`${Object.keys(shiftCounts).length}日分、${totalSlots}個の時間枠でシフト申請数を集計しました`);
+    
+    return shiftCounts;
+    
+  } catch (error) {
+    Logger.log('シフト申請数の読み込みに失敗しました: ' + error.toString());
+    return {};
+  }
+}
+
 function syncAllShiftsToCalendar() {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    const shiftSheet = spreadsheet.getSheetByName(GAS_CONFIG.SHEET_NAMES.SHIFTS);
     
     if (!shiftSheet) {
-      throw new Error('「シフト」シートが見つかりません');
+      throw new Error(`「${GAS_CONFIG.SHEET_NAMES.SHIFTS}」シートが見つかりません`);
     }
     
     // カレンダーを取得
-    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
+    const calendar = CalendarApp.getCalendarById(GAS_CONFIG.CALENDAR_ID);
     
     if (!calendar) {
-      throw new Error('カレンダーが見つかりません: ' + CALENDAR_ID);
+      throw new Error('カレンダーが見つかりません: ' + GAS_CONFIG.CALENDAR_ID);
     }
     
     // 既存のカレンダーイベントを削除（重複を防ぐため）

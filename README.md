@@ -41,6 +41,46 @@ php -S localhost:8081
 
 ブラウザで `http://localhost:8081` にアクセス
 
+## 開発用コマンド
+
+### Google Apps Script のデプロイ
+
+Google Apps Script関連のファイルは `gas/` フォルダに整理されています。
+
+#### デプロイ方法
+
+```bash
+# NPMスクリプト（推奨）
+npm run deploy:gas
+
+# 直接実行
+cd gas && ./deploy.sh
+```
+
+#### 初回セットアップ
+```bash
+npm install -g @google/clasp
+clasp login
+```
+
+詳細は `docs/clasp-setup.md` を参照してください。
+
+#### ファイル構成
+```
+gas/
+├── google-apps-script.js  # メインスクリプトファイル
+├── config.js             # 設定ファイル（カレンダーID等）
+├── .clasp.json           # clasp設定（gitignore済み）
+├── appsscript.json       # Apps Script設定（gitignore済み）
+└── .claspignore          # clasp無視ファイル
+```
+
+#### 設定変更
+Google Apps Scriptの設定は `gas/config.js` で変更できます：
+- `CALENDAR_ID`: GoogleカレンダーのカレンダーID
+- `DEFAULT_CAPACITY`: 曜日別のデフォルト人数設定
+- `SHEET_NAMES`: スプレッドシートのシート名
+
 ## 機能
 
 - Googleアカウントでのログイン（指定されたメールアドレスのみ）
