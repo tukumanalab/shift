@@ -31,6 +31,15 @@ Access the application at `http://localhost:8081`
 - Must run on localhost or HTTPS (Google OAuth requirement)
 - Port 8081 is configured in Google Cloud Console settings
 
+### Google Apps Script Deployment
+Deploy the backend Google Apps Script code using:
+
+```bash
+npm run deploy:gas
+```
+
+This command automatically updates the Google Apps Script project with the latest code from `gas/google-apps-script.js`.
+
 ## Architecture
 
 ### File Structure

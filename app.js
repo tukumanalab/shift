@@ -501,16 +501,11 @@ async function fetchCapacityFromSpreadsheet() {
 }
 
 async function fetchShiftCountsFromSpreadsheet() {
-    console.log('=== fetchShiftCountsFromSpreadsheet 開始 ===', new Date().toLocaleTimeString());
-    
     if (!currentUser) {
-        console.log('ユーザーがログインしていません');
         return {};
     }
     
     try {
-        console.log('シフト申請数を読み込み中...');
-        
         const timestamp = new Date().getTime();
         const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadShiftCounts&_t=${timestamp}`, {
             method: 'GET',
@@ -518,30 +513,8 @@ async function fetchShiftCountsFromSpreadsheet() {
         });
         
         if (response.ok) {
-            const rawText = await response.text();
-            console.log('生のレスポンステキスト:', rawText);
-            
-            const result = JSON.parse(rawText);
-            console.log('パース後のresult:', result);
-            console.log('result.dataの型:', typeof result.data);
-            console.log('result.dataの内容:', JSON.stringify(result.data, null, 2));
-            
+            const result = await response.json();
             if (result.success) {
-                console.log('シフト申請数をスプレッドシートから読み込みました:', result.data);
-                
-                // 2025-07-23の詳細確認
-                if (result.data && result.data['2025-07-23']) {
-                    console.log('2025-07-23のデータ詳細:');
-                    console.log('  型:', typeof result.data['2025-07-23']);
-                    console.log('  値:', result.data['2025-07-23']);
-                    console.log('  JSON:', JSON.stringify(result.data['2025-07-23']));
-                    
-                    if (typeof result.data['2025-07-23'] === 'object') {
-                        console.log('  キー一覧:', Object.keys(result.data['2025-07-23']));
-                    }
-                }
-                
-                console.log('=== fetchShiftCountsFromSpreadsheet 正常終了 ===', new Date().toLocaleTimeString());
                 return result.data || {};
             } else {
                 console.error('シフト申請数の読み込みに失敗:', result.error);
@@ -549,13 +522,11 @@ async function fetchShiftCountsFromSpreadsheet() {
             }
         } else {
             console.error('HTTPエラー:', response.status);
-            console.log('=== fetchShiftCountsFromSpreadsheet HTTPエラー終了 ===', new Date().toLocaleTimeString());
             return {};
         }
         
     } catch (error) {
         console.error('シフト申請数の読み込みに失敗しました:', error);
-        console.log('=== fetchShiftCountsFromSpreadsheet 例外終了 ===', new Date().toLocaleTimeString());
         return {};
     }
 }
@@ -1066,15 +1037,6 @@ function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}, capacityMap = {
             // その日付・時間枠の現在の申請数を取得
             const currentCount = (shiftCounts[dateKey] && shiftCounts[dateKey][slot]) || 0;
             
-            // デバッグ: 最初の日付の最初のスロットのみログ出力
-            if (dateKey === '2025-07-23' && slot === '13:00-13:30') {
-                console.log(`デバッグ: ${dateKey} ${slot} - 申請数: ${currentCount}`);
-                console.log('shiftCounts全体:', shiftCounts);
-                console.log('shiftCounts[dateKey]:', shiftCounts[dateKey]);
-                console.log('slot:', slot);
-                console.log('shiftCounts[dateKey][slot]:', shiftCounts[dateKey] && shiftCounts[dateKey][slot]);
-                console.log('shiftCounts[dateKey]のキー一覧:', shiftCounts[dateKey] ? Object.keys(shiftCounts[dateKey]) : 'なし');
-            }
             
             const maxCapacity = maxCapacityForDate; // その日の設定人数が各時間枠の最大人数
             const remainingCount = Math.max(0, maxCapacity - currentCount);

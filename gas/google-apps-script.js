@@ -7,19 +7,12 @@ function getCalendarId() {
   const calendarId = properties.getProperty('CALENDAR_ID');
   
   if (!calendarId) {
-    throw new Error('CALENDAR_IDが設定されていません。setCalendarId()関数を実行して設定してください。');
+    throw new Error('CALENDAR_IDが設定されていません。Google Apps Scriptのプロパティサービスで設定してください。');
   }
   
   return calendarId;
 }
 
-// カレンダーIDを設定する関数
-// 使用方法: setCalendarIdWithValue('新しいカレンダーID')
-function setCalendarIdWithValue(calendarId) {
-  const properties = PropertiesService.getScriptProperties();
-  properties.setProperty('CALENDAR_ID', calendarId);
-  Logger.log('CALENDAR_IDを設定しました: ' + calendarId);
-}
 
 function doGet(e) {
   try {
@@ -48,66 +41,8 @@ function doGet(e) {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const shiftCounts = loadShiftCounts(spreadsheet);
       
-      // デバッグ: doGetでのデータ確認
-      Logger.log('doGet内でのshiftCounts型:', typeof shiftCounts);
-      Logger.log('doGet内でのshiftCountsキー:', Object.keys(shiftCounts));
-      
-      if (shiftCounts['2025-07-23']) {
-        Logger.log('doGet内での2025-07-23の型:', typeof shiftCounts['2025-07-23']);
-        Logger.log('doGet内での2025-07-23のキー:', Object.keys(shiftCounts['2025-07-23']));
-        
-        // 手動でオブジェクトの内容を確認
-        const dateData = shiftCounts['2025-07-23'];
-        for (const timeSlot in dateData) {
-          Logger.log(`  時間枠: "${timeSlot}" = ${dateData[timeSlot]}`);
-        }
-      }
-      
-      // 手動でJSONを構築
-      let jsonStr = '{"success":true,"data":{';
-      const dateKeys = Object.keys(shiftCounts);
-      Logger.log('JSON構築: dateKeys =', dateKeys.length > 0 ? dateKeys[0] : 'なし');
-      
-      for (let i = 0; i < dateKeys.length; i++) {
-        const dateKey = dateKeys[i];
-        const dateData = shiftCounts[dateKey];
-        Logger.log(`JSON構築: 処理中の日付 = ${dateKey}, データ型 = ${typeof dateData}`);
-        
-        jsonStr += `"${dateKey}":{`;
-        
-        if (typeof dateData === 'object' && dateData !== null) {
-          const timeSlotKeys = Object.keys(dateData);
-          Logger.log(`JSON構築: ${dateKey}の時間枠数 = ${timeSlotKeys.length}`);
-          
-          for (let j = 0; j < timeSlotKeys.length; j++) {
-            const timeSlot = timeSlotKeys[j];
-            const count = dateData[timeSlot];
-            Logger.log(`JSON構築: 時間枠 "${timeSlot}" = ${count}`);
-            
-            jsonStr += `"${timeSlot}":${count}`;
-            if (j < timeSlotKeys.length - 1) {
-              jsonStr += ',';
-            }
-          }
-        } else {
-          Logger.log(`JSON構築: エラー - ${dateKey}がオブジェクトではありません: ${dateData}`);
-          // dateDataが数値の場合の緊急対応
-          jsonStr += `"unknown":${dateData}`;
-        }
-        
-        jsonStr += '}';
-        if (i < dateKeys.length - 1) {
-          jsonStr += ',';
-        }
-      }
-      
-      jsonStr += '}}';
-      
-      Logger.log('手動構築したJSON長さ:', jsonStr.length);
-      Logger.log('手動構築したJSON最初の100文字:', jsonStr.substring(0, 100));
-      
       return ContentService
-        .createTextOutput(jsonStr)
+        .createTextOutput(JSON.stringify({success: true, data: shiftCounts}))
         .setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -282,11 +217,9 @@ function loadCapacitySettings(spreadsheet) {
       };
     }).filter(item => item.date !== ''); // 有効な日付のみ
     
-    Logger.log(`${capacityData.length}件の人数設定を読み込みました`);
     return capacityData;
     
   } catch (error) {
-    Logger.log('人数設定の読み込みに失敗しました: ' + error.toString());
     return [];
   }
 }
@@ -316,10 +249,8 @@ function saveCapacitySettings(spreadsheet, capacityData) {
     // 既存のデータから更新対象の日付のみ更新
     updateCapacityData(capacitySheet, capacityData);
     
-    Logger.log(`${capacityData.length}件の人数設定を保存しました`);
     
   } catch (error) {
-    Logger.log('人数設定の保存に失敗しました: ' + error.toString());
     throw error;
   }
 }
@@ -577,18 +508,14 @@ function loadShiftCounts(spreadsheet) {
     // 日付と時間枠ごとのシフト申請数をカウント
     const shiftCounts = {};
     
-    Logger.log(`データ行数: ${data.length - 1}行（ヘッダー除く）`);
     
     data.slice(1).forEach((row, index) => {
-      Logger.log(`行 ${index + 2}: ${JSON.stringify(row)}`);
-      
       if (row.length >= 7) {
         let dateStr = '';
         let timeSlot = '';
         try {
           // 日付の形式を統一（E列：シフト日付）
           const dateValue = row[4];
-          Logger.log(`E列の値: ${dateValue}, 型: ${typeof dateValue}`);
           if (dateValue instanceof Date) {
             dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
           } else if (typeof dateValue === 'string') {
@@ -597,75 +524,29 @@ function loadShiftCounts(spreadsheet) {
           
           // 時間枠（F列）
           timeSlot = row[5] || '';
-          Logger.log(`F列の値: "${timeSlot}", 型: ${typeof timeSlot}`);
         } catch (e) {
           Logger.log('データの変換に失敗しました: ' + e.toString());
         }
         
         if (dateStr && timeSlot) {
-          Logger.log(`処理中: 日付=${dateStr}, 時間枠="${timeSlot}"`);
-          
-          // 現在のshiftCountsの状態をログ出力
-          Logger.log(`現在のshiftCounts[${dateStr}]:`, JSON.stringify(shiftCounts[dateStr]));
-          
           // 日付をキーとしたオブジェクトを初期化
           if (!shiftCounts[dateStr]) {
             shiftCounts[dateStr] = {};
-            Logger.log(`新しい日付 ${dateStr} を初期化`);
           }
           
           // オブジェクトかどうか確認
           if (typeof shiftCounts[dateStr] !== 'object' || shiftCounts[dateStr] === null) {
-            Logger.log(`警告: shiftCounts[${dateStr}]がオブジェクトではありません:`, typeof shiftCounts[dateStr], shiftCounts[dateStr]);
             shiftCounts[dateStr] = {};
           }
           
           // 時間枠ごとのカウントを初期化
           if (!shiftCounts[dateStr][timeSlot]) {
             shiftCounts[dateStr][timeSlot] = 0;
-            Logger.log(`新しい時間枠 ${dateStr} "${timeSlot}" を初期化`);
           }
           shiftCounts[dateStr][timeSlot]++;
-          Logger.log(`${dateStr} "${timeSlot}" のカウントを ${shiftCounts[dateStr][timeSlot]} に更新`);
-          Logger.log(`更新後のshiftCounts[${dateStr}]:`, JSON.stringify(shiftCounts[dateStr]));
         }
       }
     });
-    
-    // ログ出力とデバッグ
-    let totalSlots = 0;
-    Object.keys(shiftCounts).forEach(date => {
-      totalSlots += Object.keys(shiftCounts[date]).length;
-      // 2025-07-23の詳細をログ出力
-      if (date === '2025-07-23') {
-        Logger.log(`デバッグ - ${date}の時間枠:`, JSON.stringify(shiftCounts[date]));
-        Object.keys(shiftCounts[date]).forEach(timeSlot => {
-          Logger.log(`  時間枠: "${timeSlot}" = ${shiftCounts[date][timeSlot]}`);
-        });
-      }
-    });
-    Logger.log(`${Object.keys(shiftCounts).length}日分、${totalSlots}個の時間枠でシフト申請数を集計しました`);
-    
-    // 特定の日付の詳細をログ出力
-    if (shiftCounts['2025-07-23']) {
-      Logger.log('2025-07-23の返す前の詳細:');
-      Logger.log('  型:', typeof shiftCounts['2025-07-23']);
-      Logger.log('  キー:', Object.keys(shiftCounts['2025-07-23']));
-      
-      const dateData = shiftCounts['2025-07-23'];
-      for (const timeSlot in dateData) {
-        Logger.log(`  値: "${timeSlot}" = ${dateData[timeSlot]} (型: ${typeof dateData[timeSlot]})`);
-      }
-    }
-    
-    // shiftCountsオブジェクト全体の構造確認
-    Logger.log('shiftCountsの構造確認:');
-    for (const dateKey in shiftCounts) {
-      Logger.log(`  日付: ${dateKey}, 型: ${typeof shiftCounts[dateKey]}`);
-      if (typeof shiftCounts[dateKey] === 'object' && shiftCounts[dateKey] !== null) {
-        Logger.log(`    キー数: ${Object.keys(shiftCounts[dateKey]).length}`);
-      }
-    }
     
     return shiftCounts;
     
@@ -703,16 +584,41 @@ function testLoadShiftCounts() {
     Logger.log('データ行数:', data.length);
     Logger.log('ヘッダー行:', JSON.stringify(data[0]));
     
-    // データ行の例（最初の5行）
-    for (let i = 1; i < Math.min(6, data.length); i++) {
-      Logger.log(`データ行${i}:`, JSON.stringify(data[i]));
-      Logger.log(`  E列(日付): "${data[i][4]}", F列(時間帯): "${data[i][5]}"`);
+    // 2025-07-23の13:00-13:30に関連するデータを詳細確認
+    Logger.log('=== 2025-07-23の13:00-13:30関連データ ===');
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (row.length >= 6) {
+        const dateValue = row[4]; // E列
+        const timeSlot = row[5];  // F列
+        
+        let dateStr = '';
+        if (dateValue instanceof Date) {
+          dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (typeof dateValue === 'string') {
+          dateStr = dateValue;
+        }
+        
+        if (dateStr === '2025-07-23' && timeSlot === '13:00-13:30') {
+          Logger.log(`発見: 行${i+1} - ユーザー: ${row[2]}, 日付: ${dateStr}, 時間: "${timeSlot}"`);
+          Logger.log(`  全データ: ${JSON.stringify(row)}`);
+        }
+      }
     }
   }
   
   const result = loadShiftCounts(spreadsheet);
   Logger.log('=== テスト関数終了 ===');
   Logger.log('結果:', JSON.stringify(result));
+  
+  // 2025-07-23の結果を詳細表示
+  if (result['2025-07-23']) {
+    Logger.log('2025-07-23の詳細結果:');
+    for (const timeSlot in result['2025-07-23']) {
+      Logger.log(`  "${timeSlot}": ${result['2025-07-23'][timeSlot]}`);
+    }
+  }
+  
   return result;
 }
 
