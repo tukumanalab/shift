@@ -442,6 +442,38 @@ function getDefaultCapacity(dayOfWeek) {
     }
 }
 
+// 管理者用：個人ごとに連続する時間帯をマージする関数
+function mergeShiftsByPerson(shiftsForDate) {
+    // 個人ごとにグループ化
+    const shiftsByPerson = {};
+    shiftsForDate.forEach(shift => {
+        const personKey = `${shift.userName || shift.name || '名前未設定'}_${shift.userEmail || shift.email}`;
+        if (!shiftsByPerson[personKey]) {
+            shiftsByPerson[personKey] = {
+                person: shift,
+                timeSlots: []
+            };
+        }
+        shiftsByPerson[personKey].timeSlots.push(shift.timeSlot || shift.time);
+    });
+    
+    // 各個人の時間帯をマージ
+    const mergedShifts = [];
+    Object.keys(shiftsByPerson).forEach(personKey => {
+        const personData = shiftsByPerson[personKey];
+        const mergedTimeSlots = mergeConsecutiveTimeSlots(personData.timeSlots);
+        
+        mergedTimeSlots.forEach(timeSlot => {
+            mergedShifts.push({
+                ...personData.person,
+                timeSlot: timeSlot
+            });
+        });
+    });
+    
+    return mergedShifts;
+}
+
 // 指定された日付のシフト情報を表示する関数
 function displayShiftsForDate(container, dateKey) {
     if (!window.allShiftsData) {
@@ -455,10 +487,13 @@ function displayShiftsForDate(container, dateKey) {
         return; // シフトがない場合は何も表示しない
     }
     
+    // 個人ごとに連続する時間帯をマージ
+    const mergedShifts = mergeShiftsByPerson(shiftsForDate);
+    
     // 時間帯ごとにグループ化
     const timeSlotGroups = {};
-    shiftsForDate.forEach(shift => {
-        const timeSlot = shift.timeSlot || shift.time;
+    mergedShifts.forEach(shift => {
+        const timeSlot = shift.timeSlot;
         if (!timeSlotGroups[timeSlot]) {
             timeSlotGroups[timeSlot] = [];
         }
@@ -532,10 +567,13 @@ function openShiftDetailModal(dateKey) {
             </div>
         `;
     } else {
+        // 個人ごとに連続する時間帯をマージ
+        const mergedShifts = mergeShiftsByPerson(shiftsForDate);
+        
         // 時間帯ごとにグループ化
         const timeSlotGroups = {};
-        shiftsForDate.forEach(shift => {
-            const timeSlot = shift.timeSlot || shift.time;
+        mergedShifts.forEach(shift => {
+            const timeSlot = shift.timeSlot;
             if (!timeSlotGroups[timeSlot]) {
                 timeSlotGroups[timeSlot] = [];
             }
