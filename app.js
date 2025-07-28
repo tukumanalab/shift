@@ -4,6 +4,7 @@ const AUTHORIZED_EMAILS = config.AUTHORIZED_EMAILS.split(',').map(email => email
 
 let currentUser = null;
 let isAdminUser = false;
+let myShiftsCache = null; // シフトデータのキャッシュ
 
 function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
@@ -45,15 +46,40 @@ async function showProfile(profileData) {
     // タブの表示制御
     updateTabVisibility();
     
-    // 初期ロード
+    // ユーザーシフトデータの初期ロード
+    await loadUserShiftsData();
+    
+    // 初期ロード - シフトデータをキャッシュに読み込み
     if (isAdminUser) {
         loadShiftList();
     } else {
+        await loadMyShiftsToCache();
         loadMyShifts();
     }
 }
 
-
+// ユーザーのシフトデータを取得してキャッシュする関数
+async function loadUserShiftsData() {
+    if (!currentUser) return;
+    
+    try {
+        const timestamp = new Date().getTime();
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=${currentUser.sub}&_t=${timestamp}`, {
+            method: 'GET',
+            cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+                currentUserShifts = result.data;
+            }
+        }
+    } catch (error) {
+        console.error('ユーザーシフトデータの取得に失敗:', error);
+        currentUserShifts = [];
+    }
+}
 
 async function syncAllShiftsToCalendar() {
     if (!currentUser) {
@@ -127,7 +153,7 @@ function setupTabSwitching() {
             if (targetTab === 'capacity-settings') {
                 loadCapacitySettings();
             } else if (targetTab === 'my-shifts') {
-                loadMyShifts();
+                loadMyShifts(); // キャッシュからデータを表示
             } else if (targetTab === 'shift-request') {
                 loadShiftRequestForm();
             }
@@ -758,26 +784,11 @@ function updateTabVisibility() {
     }
 }
 
-async function loadMyShifts() {
-    console.log('自分のシフト一覧を読み込み中...');
-    const container = document.getElementById('myShiftsContent');
-    if (!container) return;
-    
-    if (!currentUser) {
-        container.innerHTML = '<p>ログインが必要です。</p>';
-        return;
-    }
-    
-    // ローディング表示
-    container.innerHTML = `
-        <div class="loading-container">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">自分のシフト一覧を読み込み中...</div>
-        </div>
-    `;
+// シフトデータをキャッシュに読み込む関数
+async function loadMyShiftsToCache() {
+    if (!currentUser) return;
     
     try {
-        // ユーザーのシフトデータを取得
         const timestamp = new Date().getTime();
         const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=${currentUser.sub}&_t=${timestamp}`, {
             method: 'GET',
@@ -786,19 +797,55 @@ async function loadMyShifts() {
         
         if (response.ok) {
             const result = await response.json();
-            if (result.success && result.data) {
-                displayMyShifts(container, result.data);
+            if (result.success) {
+                myShiftsCache = result.data || [];
+                console.log('シフトデータをキャッシュに読み込みました:', myShiftsCache.length, '件');
             } else {
-                container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
+                console.error('シフトデータの取得に失敗:', result.error);
+                myShiftsCache = [];
             }
         } else {
-            container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
+            console.error('シフトデータの取得リクエストが失敗しました');
+            myShiftsCache = [];
         }
-        
     } catch (error) {
-        console.error('シフトデータの読み込みに失敗しました:', error);
-        container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
+        console.error('シフトデータの取得中にエラーが発生:', error);
+        myShiftsCache = [];
     }
+}
+
+// キャッシュを更新する関数（シフト申請成功時に呼び出し）
+function updateMyShiftsCache(newShift) {
+    if (!myShiftsCache) {
+        myShiftsCache = [];
+    }
+    myShiftsCache.push(newShift);
+    console.log('シフトキャッシュを更新しました:', newShift);
+}
+
+async function loadMyShifts() {
+    console.log('自分のシフト一覧を表示中...');
+    const container = document.getElementById('myShiftsContent');
+    if (!container) return;
+    
+    if (!currentUser) {
+        container.innerHTML = '<p>ログインが必要です。</p>';
+        return;
+    }
+    
+    // キャッシュが存在しない場合は読み込み
+    if (myShiftsCache === null) {
+        container.innerHTML = `
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">自分のシフト一覧を読み込み中...</div>
+            </div>
+        `;
+        await loadMyShiftsToCache();
+    }
+    
+    // キャッシュからデータを表示
+    displayMyShifts(container, myShiftsCache || []);
 }
 
 function displayMyShifts(container, shiftsData) {
@@ -1055,6 +1102,7 @@ let currentShiftRequestDate = null;
 let currentShiftRequestDateObj = null;
 let currentShiftCapacity = 0;
 let currentShiftCounts = {};
+let currentUserShifts = []; // ユーザーのシフトデータをキャッシュ
 // 不要な変数を削除（日付詳細モーダル用のselectedTimeSlotsとは別）
 
 // submitInlineShiftRequest関数を削除（日付詳細モーダルから申請するため不要）
@@ -1251,6 +1299,18 @@ async function submitShiftRequest() {
             });
         }
         
+        // キャッシュを更新
+        for (const timeSlot of selectedSlots) {
+            const newShift = {
+                shiftDate: currentShiftRequestDate,
+                timeSlot: timeSlot,
+                content: remarks || 'シフト',
+                userName: currentUser.name,
+                userEmail: currentUser.email
+            };
+            updateMyShiftsCache(newShift);
+        }
+        
         alert(`${currentShiftRequestDate} の\n${selectedSlots.join('\n')}\nにシフトを申請しました。`);
         closeShiftRequestModal();
         
@@ -1308,27 +1368,12 @@ async function openDateDetailModal(dateKey) {
     
     title.textContent = `${year}年${month}月${day}日 (${weekday}) のシフト枠`;
     
-    // 自分の申請済みシフトを取得（一時的に無効化）
+    // 自分の申請済みシフトをキャッシュから取得
     let myShiftsForDate = [];
-    /*
-    try {
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=${currentUser.sub}&_t=${timestamp}`, {
-            method: 'GET',
-            cache: 'no-cache'
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-                // 該当日付のシフトのみをフィルタリング
-                myShiftsForDate = result.data.filter(shift => shift.shiftDate === dateKey);
-            }
-        }
-    } catch (error) {
-        console.error('自分のシフトデータの取得に失敗:', error);
+    if (myShiftsCache) {
+        // 該当日付のシフトのみをフィルタリング
+        myShiftsForDate = myShiftsCache.filter(shift => shift.shiftDate === dateKey);
     }
-    */
     
     // 時間枠を生成
     const startHour = 13;
