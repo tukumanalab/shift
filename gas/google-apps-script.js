@@ -60,12 +60,52 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     
+    // デバッグ用：受信したデータを「debug」シートに記録
+    logToDebugSheet(spreadsheet, data);
+    
     if (data.type === 'shift') {
       // シフトデータの処理
       const shiftSheet = spreadsheet.getSheetByName('シフト');
       
       if (!shiftSheet) {
         throw new Error(`「シフト」シートが見つかりません`);
+      }
+      
+      // 重複チェック：同じユーザーが同じ日の同じ時間帯に既に申請していないか確認
+      const existingData = shiftSheet.getDataRange().getValues();
+
+      logToDebugSheet(spreadsheet, existingData);
+      
+      if (existingData.length > 1) { // ヘッダー行を除く
+        const isDuplicate = existingData.slice(1).some(row => {
+          // B列: userId, E列: date, F列: time
+          let rowDateStr = '';
+          try {
+            // E列の日付をYYYY-MM-DD形式に変換
+            const dateValue = row[4];
+            if (dateValue instanceof Date) {
+              rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            } else if (typeof dateValue === 'string') {
+              rowDateStr = dateValue;
+            }
+          } catch (e) {
+            rowDateStr = '';
+          }
+          
+          return row[1] === data.userId && 
+                 rowDateStr === data.date && 
+                 row[5] === data.time;
+        });
+        
+        if (isDuplicate) {
+          return ContentService
+            .createTextOutput(JSON.stringify({
+              success: false, 
+              error: 'duplicate',
+              message: `${data.date}の${data.time}は既に申請済みです。`
+            }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
       }
       
       // シフトデータを追加
@@ -648,5 +688,47 @@ function addTestShiftFor728() {
   } catch (error) {
     Logger.log('テスト用シフト申請の追加に失敗しました: ' + error.toString());
     throw error;
+  }
+}
+
+// デバッグ用：受信したデータを「debug」シートに記録
+function logToDebugSheet(spreadsheet, data) {
+  try {
+    // 「debug」シートを取得または作成
+    let debugSheet = spreadsheet.getSheetByName('debug');
+    
+    if (!debugSheet) {
+      // シートが存在しない場合は作成
+      debugSheet = spreadsheet.insertSheet('debug');
+      
+      // ヘッダー行を追加
+      debugSheet.appendRow([
+        'タイムスタンプ',
+        'データタイプ',
+        'ユーザーID',
+        'ユーザー名',
+        'メールアドレス',
+        '日付',
+        '時間',
+        'コンテンツ',
+        '生データ(JSON)'
+      ]);
+    }
+    
+    // データを行に追加
+    debugSheet.appendRow([
+      new Date(),
+      data.type || '',
+      data.userId || '',
+      data.userName || '',
+      data.userEmail || '',
+      data.date || '',
+      data.time || '',
+      data.content || '',
+      JSON.stringify(data)
+    ]);
+    
+  } catch (error) {
+    Logger.log('デバッグシートへの記録に失敗しました: ' + error.toString());
   }
 }

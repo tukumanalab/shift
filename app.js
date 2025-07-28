@@ -1268,7 +1268,7 @@ let currentDetailDateKey = null;
 let selectedTimeSlots = [];
 
 // 日付詳細モーダルを開く関数
-function openDateDetailModal(dateKey) {
+async function openDateDetailModal(dateKey) {
     const modal = document.getElementById('dateDetailModal');
     const title = document.getElementById('dateDetailTitle');
     const container = document.getElementById('dateDetailContainer');
@@ -1308,6 +1308,28 @@ function openDateDetailModal(dateKey) {
     
     title.textContent = `${year}年${month}月${day}日 (${weekday}) のシフト枠`;
     
+    // 自分の申請済みシフトを取得（一時的に無効化）
+    let myShiftsForDate = [];
+    /*
+    try {
+        const timestamp = new Date().getTime();
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=${currentUser.sub}&_t=${timestamp}`, {
+            method: 'GET',
+            cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+                // 該当日付のシフトのみをフィルタリング
+                myShiftsForDate = result.data.filter(shift => shift.shiftDate === dateKey);
+            }
+        }
+    } catch (error) {
+        console.error('自分のシフトデータの取得に失敗:', error);
+    }
+    */
+    
     // 時間枠を生成
     const startHour = 13;
     const endHour = 18;
@@ -1342,37 +1364,55 @@ function openDateDetailModal(dateKey) {
         
         const remainingCount = Math.max(0, maxCapacityForDate - currentCount);
         
+        // 自分が既に申請しているかチェック
+        const isAlreadyApplied = myShiftsForDate.some(shift => shift.timeSlot === slot);
+        
         const capacityNumber = document.createElement('div');
         capacityNumber.className = 'date-detail-capacity-number';
         capacityNumber.textContent = remainingCount;
         
-        // 残り人数に応じてクラスを設定
-        if (remainingCount === 0) {
-            capacityNumber.classList.add('capacity-zero');
+        // 既に申請済みの場合は特別な処理
+        if (isAlreadyApplied) {
+            capacityNumber.classList.add('capacity-applied');
             slotDiv.classList.add('disabled');
-        } else if (remainingCount === 1) {
-            capacityNumber.classList.add('capacity-low');
-            slotDiv.classList.add('selectable');
-        } else if (remainingCount <= maxCapacityForDate / 2) {
-            capacityNumber.classList.add('capacity-medium');
-            slotDiv.classList.add('selectable');
+            
+            const capacityLabel = document.createElement('div');
+            capacityLabel.className = 'date-detail-capacity-label';
+            capacityLabel.textContent = '申請済み';
+            capacityLabel.style.color = '#4CAF50';
+            capacityLabel.style.fontWeight = 'bold';
+            
+            capacityDiv.appendChild(capacityNumber);
+            capacityDiv.appendChild(capacityLabel);
         } else {
-            capacityNumber.classList.add('capacity-high');
-            slotDiv.classList.add('selectable');
+            // 残り人数に応じてクラスを設定
+            if (remainingCount === 0) {
+                capacityNumber.classList.add('capacity-zero');
+                slotDiv.classList.add('disabled');
+            } else if (remainingCount === 1) {
+                capacityNumber.classList.add('capacity-low');
+                slotDiv.classList.add('selectable');
+            } else if (remainingCount <= maxCapacityForDate / 2) {
+                capacityNumber.classList.add('capacity-medium');
+                slotDiv.classList.add('selectable');
+            } else {
+                capacityNumber.classList.add('capacity-high');
+                slotDiv.classList.add('selectable');
+            }
+            
+            const capacityLabel = document.createElement('div');
+            capacityLabel.className = 'date-detail-capacity-label';
+            capacityLabel.textContent = '残り枠';
+            
+            capacityDiv.appendChild(capacityNumber);
+            capacityDiv.appendChild(capacityLabel);
         }
-        
-        const capacityLabel = document.createElement('div');
-        capacityLabel.className = 'date-detail-capacity-label';
-        capacityLabel.textContent = '残り枠';
-        
-        capacityDiv.appendChild(capacityNumber);
-        capacityDiv.appendChild(capacityLabel);
         
         slotDiv.appendChild(timeDiv);
         slotDiv.appendChild(capacityDiv);
         
-        // 選択可能な場合はクリックイベントを追加
-        if (remainingCount > 0) {
+        // 選択可能な場合はクリックイベントを追加（申請済みでない、かつ残り枠がある場合）
+        if (!isAlreadyApplied && remainingCount > 0) {
             slotDiv.onclick = () => toggleTimeSlotSelection(slotDiv, slot);
         }
         
@@ -1480,12 +1520,15 @@ async function submitDateDetailShiftRequest() {
                 mode: 'no-cors',
                 body: JSON.stringify(shiftData)
             });
+            
+            // no-corsモードではレスポンスの詳細が取得できない
         }
         
         const dateObj = new Date(currentDetailDateKey);
         const month = dateObj.getMonth() + 1;
         const day = dateObj.getDate();
         
+        // 申請完了メッセージを表示
         alert(`${month}月${day}日の\n${selectedTimeSlots.join('\n')}\nにシフトを申請しました。`);
         
         // 申請した日付を保存（モーダルを閉じる前に）

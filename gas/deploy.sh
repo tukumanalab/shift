@@ -27,12 +27,34 @@ else
     exit 1
 fi
 
-# デプロイ
+# 既存のデプロイメント一覧を取得
 echo "🔄 デプロイ中..."
-if clasp deploy --description "$(date '+%Y-%m-%d %H:%M:%S') 自動デプロイ"; then
-    echo "✅ デプロイが完了しました"
-    echo "🌐 Google Apps Script エディタで確認: clasp open"
+DEPLOYMENTS=$(clasp deployments 2>/dev/null)
+
+if echo "$DEPLOYMENTS" | grep -q "deploymentId"; then
+    # 既存のデプロイメントがある場合は更新
+    DEPLOYMENT_ID=$(echo "$DEPLOYMENTS" | grep "deploymentId" | head -1 | awk '{print $2}')
+    if [ -n "$DEPLOYMENT_ID" ]; then
+        echo "📝 既存のデプロイメントを更新中... (ID: $DEPLOYMENT_ID)"
+        if clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "$(date '+%Y-%m-%d %H:%M:%S') 自動更新"; then
+            echo "✅ デプロイの更新が完了しました"
+        else
+            echo "❌ デプロイの更新に失敗しました"
+            exit 1
+        fi
+    else
+        echo "❌ デプロイメントIDの取得に失敗しました"
+        exit 1
+    fi
 else
-    echo "❌ デプロイに失敗しました"
-    exit 1
+    # 新規デプロイメント
+    echo "🆕 新規デプロイメントを作成中..."
+    if clasp deploy --description "$(date '+%Y-%m-%d %H:%M:%S') 初回デプロイ"; then
+        echo "✅ 新規デプロイが完了しました"
+    else
+        echo "❌ 新規デプロイに失敗しました"
+        exit 1
+    fi
 fi
+
+echo "🌐 Google Apps Script エディタで確認: clasp open"
