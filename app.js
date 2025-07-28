@@ -987,6 +987,41 @@ async function loadMyShifts() {
     displayMyShifts(container, myShiftsCache || []);
 }
 
+// 連続する時間帯をマージする関数
+function mergeConsecutiveTimeSlots(timeSlots) {
+    if (timeSlots.length === 0) return [];
+    
+    // 時間帯を開始時刻でソート
+    const sorted = timeSlots.sort((a, b) => {
+        const timeA = a.replace(/(\d+):(\d+)-(\d+):(\d+)/, '$1$2');
+        const timeB = b.replace(/(\d+):(\d+)-(\d+):(\d+)/, '$1$2');
+        return parseInt(timeA) - parseInt(timeB);
+    });
+    
+    const merged = [];
+    let currentStart = sorted[0].split('-')[0];
+    let currentEnd = sorted[0].split('-')[1];
+    
+    for (let i = 1; i < sorted.length; i++) {
+        const [nextStart, nextEnd] = sorted[i].split('-');
+        
+        // 現在の終了時刻と次の開始時刻が一致すれば連続
+        if (currentEnd === nextStart) {
+            currentEnd = nextEnd;
+        } else {
+            // 連続していない場合は現在の範囲を保存して新しい範囲を開始
+            merged.push(`${currentStart}-${currentEnd}`);
+            currentStart = nextStart;
+            currentEnd = nextEnd;
+        }
+    }
+    
+    // 最後の範囲を追加
+    merged.push(`${currentStart}-${currentEnd}`);
+    
+    return merged;
+}
+
 function displayMyShifts(container, shiftsData) {
     if (!shiftsData || shiftsData.length === 0) {
         container.innerHTML = `
@@ -998,10 +1033,43 @@ function displayMyShifts(container, shiftsData) {
         return;
     }
     
+    // 日付ごとにシフトをグループ化
+    const shiftsByDate = {};
+    shiftsData.forEach(shift => {
+        const date = shift.shiftDate;
+        if (!shiftsByDate[date]) {
+            shiftsByDate[date] = {
+                shifts: [],
+                registrationDate: shift.registrationDate,
+                content: shift.content
+            };
+        }
+        shiftsByDate[date].shifts.push(shift.timeSlot);
+    });
+    
+    // 各日付の時間帯をマージ
+    const mergedShifts = [];
+    Object.keys(shiftsByDate).forEach(date => {
+        const dateData = shiftsByDate[date];
+        const mergedTimeSlots = mergeConsecutiveTimeSlots(dateData.shifts);
+        
+        mergedTimeSlots.forEach(timeSlot => {
+            mergedShifts.push({
+                shiftDate: date,
+                timeSlot: timeSlot,
+                content: dateData.content,
+                registrationDate: dateData.registrationDate
+            });
+        });
+    });
+    
+    // 日付でソート
+    mergedShifts.sort((a, b) => new Date(a.shiftDate) - new Date(b.shiftDate));
+    
     // シフトテーブルを作成
     let tableHTML = `
         <div class="my-shifts-summary">
-            <h4>登録済みシフト: ${shiftsData.length}件</h4>
+            <h4>登録済みシフト: ${mergedShifts.length}件</h4>
         </div>
         <div class="my-shifts-table-container">
             <table class="my-shifts-table">
@@ -1016,7 +1084,7 @@ function displayMyShifts(container, shiftsData) {
                 <tbody>
     `;
     
-    shiftsData.forEach(shift => {
+    mergedShifts.forEach(shift => {
         const shiftDate = new Date(shift.shiftDate);
         const formattedDate = shiftDate.toLocaleDateString('ja-JP', {
             year: 'numeric',
