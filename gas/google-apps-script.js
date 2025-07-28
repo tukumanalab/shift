@@ -489,9 +489,9 @@ function loadUserShifts(spreadsheet, userId) {
       return [];
     }
     
-    // ユーザーのシフトデータをフィルタリング
+    // ユーザーのシフトデータをフィルタリング（管理者の場合は全員のデータを返す）
     const userShifts = data.slice(1).filter(row => {
-      return row.length >= 7 && row[1] === userId; // B列のユーザーIDでフィルタ
+      return row.length >= 7 && (userId === 'admin' || row[1] === userId); // 管理者または指定ユーザー
     }).map(row => {
       let dateStr = '';
       try {

@@ -161,10 +161,46 @@ function setupTabSwitching() {
     });
 }
 
-function loadShiftList() {
-    // TODO: Implement shift list loading from Google Sheets
-    console.log('Loading shift list...');
-    generateCalendar('shiftCalendarContainer');
+async function loadShiftList() {
+    console.log('管理者モード: 全員のシフト一覧を読み込み中...');
+    
+    const container = document.getElementById('shiftCalendarContainer');
+    if (!container) return;
+    
+    // ローディング表示
+    container.innerHTML = `
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">全員のシフト一覧を読み込み中...</div>
+        </div>
+    `;
+    
+    try {
+        // 管理者として全員のシフトデータを取得
+        const timestamp = new Date().getTime();
+        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=admin&_t=${timestamp}`, {
+            method: 'GET',
+            cache: 'no-cache'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                window.allShiftsData = result.data || [];
+                console.log('全員のシフトデータを読み込みました:', window.allShiftsData.length, '件');
+                generateCalendar('shiftCalendarContainer');
+            } else {
+                container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
+                console.error('シフトデータの取得に失敗:', result.error);
+            }
+        } else {
+            container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
+            console.error('シフトデータの取得リクエストが失敗しました');
+        }
+    } catch (error) {
+        container.innerHTML = '<p>シフトデータの読み込み中にエラーが発生しました。</p>';
+        console.error('シフトデータの読み込み中にエラーが発生:', error);
+    }
 }
 
 function generateCalendar(containerId, isCapacityMode = false, isRequestMode = false) {
@@ -399,14 +435,19 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     cell.appendChild(requestInfo);
                     cell.setAttribute('data-date', dateKey);
                 } else {
-                    // シフト一覧モードの場合はシフト情報表示用のエリア
+                    // シフト一覧モードの場合は全員のシフト情報を表示
+                    const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
                     const shiftInfo = document.createElement('div');
                     shiftInfo.className = 'calendar-shift-info';
-                    shiftInfo.id = `shift-${year}-${month + 1}-${date}`;
+                    shiftInfo.id = `shift-${dateKey}`;
+                    
+                    // 全員のシフトデータから該当日付のデータを取得
+                    displayShiftsForDate(shiftInfo, dateKey);
+                    
                     cell.appendChild(shiftInfo);
                     
                     // クリックイベント
-                    cell.setAttribute('data-date', `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`);
+                    cell.setAttribute('data-date', dateKey);
                     cell.addEventListener('click', handleCalendarCellClick);
                 }
                 
@@ -438,13 +479,148 @@ function getDefaultCapacity(dayOfWeek) {
     }
 }
 
+// 指定された日付のシフト情報を表示する関数
+function displayShiftsForDate(container, dateKey) {
+    if (!window.allShiftsData) {
+        return;
+    }
+    
+    // 該当日付のシフトをフィルタリング
+    const shiftsForDate = window.allShiftsData.filter(shift => shift.shiftDate === dateKey);
+    
+    if (shiftsForDate.length === 0) {
+        return; // シフトがない場合は何も表示しない
+    }
+    
+    // 時間帯ごとにグループ化
+    const timeSlotGroups = {};
+    shiftsForDate.forEach(shift => {
+        const timeSlot = shift.timeSlot || shift.time;
+        if (!timeSlotGroups[timeSlot]) {
+            timeSlotGroups[timeSlot] = [];
+        }
+        timeSlotGroups[timeSlot].push(shift);
+    });
+    
+    // 時間帯順にソート
+    const sortedTimeSlots = Object.keys(timeSlotGroups).sort();
+    
+    sortedTimeSlots.forEach(timeSlot => {
+        const timeSlotDiv = document.createElement('div');
+        timeSlotDiv.className = 'shift-time-slot';
+        
+        const timeLabel = document.createElement('div');
+        timeLabel.className = 'shift-time-label';
+        timeLabel.textContent = timeSlot;
+        timeSlotDiv.appendChild(timeLabel);
+        
+        const peopleDiv = document.createElement('div');
+        peopleDiv.className = 'shift-people';
+        
+        timeSlotGroups[timeSlot].forEach(shift => {
+            const personDiv = document.createElement('div');
+            personDiv.className = 'shift-person';
+            personDiv.textContent = shift.userName || shift.name || '名前未設定';
+            personDiv.title = `${shift.userName || shift.name || '名前未設定'} (${shift.userEmail || shift.email || ''})`;
+            peopleDiv.appendChild(personDiv);
+        });
+        
+        timeSlotDiv.appendChild(peopleDiv);
+        container.appendChild(timeSlotDiv);
+    });
+}
+
 function handleCalendarCellClick(event) {
     const cell = event.currentTarget;
     const date = cell.getAttribute('data-date');
     if (!date) return;
     
     console.log('Clicked date:', date);
-    // TODO: 日付に応じた処理を実装
+    openShiftDetailModal(date);
+}
+
+// シフト詳細モーダルを開く関数
+function openShiftDetailModal(dateKey) {
+    if (!window.allShiftsData) {
+        alert('シフトデータが読み込まれていません。');
+        return;
+    }
+    
+    // 該当日付のシフトをフィルタリング
+    const shiftsForDate = window.allShiftsData.filter(shift => shift.shiftDate === dateKey);
+    
+    // 日付を整形して表示
+    const dateObj = new Date(dateKey);
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1;
+    const day = dateObj.getDate();
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    const weekday = weekdays[dateObj.getDay()];
+    
+    const title = document.getElementById('shiftDetailTitle');
+    title.textContent = `${year}年${month}月${day}日 (${weekday}) のシフト詳細`;
+    
+    const content = document.getElementById('shiftDetailContent');
+    
+    if (shiftsForDate.length === 0) {
+        content.innerHTML = `
+            <div class="no-shifts-message">
+                <p>この日にはシフトの申請がありません。</p>
+            </div>
+        `;
+    } else {
+        // 時間帯ごとにグループ化
+        const timeSlotGroups = {};
+        shiftsForDate.forEach(shift => {
+            const timeSlot = shift.timeSlot || shift.time;
+            if (!timeSlotGroups[timeSlot]) {
+                timeSlotGroups[timeSlot] = [];
+            }
+            timeSlotGroups[timeSlot].push(shift);
+        });
+        
+        // 時間帯順にソート
+        const sortedTimeSlots = Object.keys(timeSlotGroups).sort();
+        
+        let html = '<div class="shift-detail-list">';
+        
+        sortedTimeSlots.forEach(timeSlot => {
+            html += `
+                <div class="shift-detail-time-slot">
+                    <div class="shift-detail-time-header">
+                        <h4 class="shift-detail-time">${timeSlot}</h4>
+                        <span class="shift-detail-count">${timeSlotGroups[timeSlot].length}名</span>
+                    </div>
+                    <div class="shift-detail-people">
+            `;
+            
+            timeSlotGroups[timeSlot].forEach(shift => {
+                html += `
+                    <div class="shift-detail-person">
+                        <div class="shift-person-name">${shift.userName || shift.name || '名前未設定'}</div>
+                        <div class="shift-person-email">${shift.userEmail || shift.email || ''}</div>
+                        ${shift.content && shift.content !== 'シフト' ? `<div class="shift-person-note">${shift.content}</div>` : ''}
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        content.innerHTML = html;
+    }
+    
+    // モーダルを表示
+    document.getElementById('shiftDetailModal').style.display = 'block';
+}
+
+// シフト詳細モーダルを閉じる関数
+function closeShiftDetailModal() {
+    document.getElementById('shiftDetailModal').style.display = 'none';
 }
 
 async function loadCapacitySettings() {

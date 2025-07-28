@@ -247,6 +247,111 @@
             font-size: 12px;
             color: #666;
         }
+        .shift-time-slot {
+            margin: 2px 0;
+            font-size: 10px;
+        }
+        .shift-time-label {
+            font-weight: bold;
+            color: #333;
+            font-size: 10px;
+            margin-bottom: 1px;
+        }
+        .shift-people {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+        }
+        .shift-person {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60px;
+        }
+        .shift-person:hover {
+            background-color: #bbdefb;
+        }
+        
+        /* シフト詳細ダイアログのスタイル */
+        .shift-detail-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .shift-detail-time-slot {
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .shift-detail-time-header {
+            background-color: #f5f5f5;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .shift-detail-time {
+            margin: 0;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        .shift-detail-count {
+            background-color: #2196f3;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .shift-detail-people {
+            padding: 16px;
+        }
+        .shift-detail-person {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        .shift-detail-person:last-child {
+            margin-bottom: 0;
+        }
+        .shift-person-name {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .shift-person-email {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        .shift-person-note {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            border-left: 3px solid #ffc107;
+        }
+        .no-shifts-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        .no-shifts-message p {
+            margin: 0;
+            font-size: 16px;
+        }
         .sunday {
             color: #dc3545;
         }
@@ -1159,6 +1264,26 @@
                 <div class="modal-buttons">
                     <button type="button" class="modal-btn submit-btn" onclick="submitDateDetailShiftRequest()">選択した時間枠で申請</button>
                     <button type="button" class="modal-btn cancel-btn" onclick="closeDateDetailModal()">キャンセル</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- シフト詳細表示モーダル -->
+    <div id="shiftDetailModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="shiftDetailTitle">シフト詳細</h3>
+                <span class="modal-close" onclick="closeShiftDetailModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="shiftDetailContent">
+                    <!-- シフト詳細がここに表示される -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn cancel-btn" onclick="closeShiftDetailModal()">閉じる</button>
                 </div>
             </div>
         </div>
