@@ -8,13 +8,6 @@ let isAdminUser = false;
 function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
     
-    console.log("ID: " + responsePayload.sub);
-    console.log('Full Name: ' + responsePayload.name);
-    console.log('Given Name: ' + responsePayload.given_name);
-    console.log('Family Name: ' + responsePayload.family_name);
-    console.log("Image URL: " + responsePayload.picture);
-    console.log("Email: " + responsePayload.email);
-
     // Check if email is authorized admin
     isAdminUser = AUTHORIZED_EMAILS.includes(responsePayload.email);
     
@@ -625,7 +618,7 @@ async function saveSingleCapacity(dateKey) {
 }
 
 function applyCapacityData(capacityData) {
-    console.log('適用するデータ:', capacityData);
+    console.log('**適用するデータ:', capacityData);
     
     // データを日付をキーとするマップに変換
     const capacityMap = {};
@@ -900,9 +893,13 @@ async function loadShiftRequestForm() {
             fetchCapacityFromSpreadsheet(),
             fetchShiftCountsFromSpreadsheet()
         ]);
+
+        console.log("***", shiftCounts)
         
         // グローバル変数に保存
         currentShiftCounts = shiftCounts;
+
+        console.log(currentShiftCounts)
         
         // コンテナをクリアしてカレンダーを生成
         container.innerHTML = '<div id="shiftRequestCalendarContainer" class="calendar-container"></div>';

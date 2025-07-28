@@ -17,10 +17,10 @@ function getCalendarId() {
 function doGet(e) {
   try {
     const params = e.parameter;
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     
     if (params.type === 'loadCapacity') {
       // 人数設定データの読み込み
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const capacityData = loadCapacitySettings(spreadsheet);
       
       return ContentService
@@ -29,7 +29,6 @@ function doGet(e) {
         
     } else if (params.type === 'loadMyShifts' && params.userId) {
       // ユーザーのシフトデータの読み込み
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const shiftsData = loadUserShifts(spreadsheet, params.userId);
       
       return ContentService
@@ -38,7 +37,6 @@ function doGet(e) {
         
     } else if (params.type === 'loadShiftCounts') {
       // シフト申請数の読み込み
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const shiftCounts = loadShiftCounts(spreadsheet);
       
       return ContentService
@@ -487,8 +485,10 @@ function loadUserShifts(spreadsheet, userId) {
   }
 }
 
-function loadShiftCounts(spreadsheet) {
+function loadShiftCounts() {
   try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
     // 「シフト」シートを取得
     const shiftSheet = spreadsheet.getSheetByName('シフト');
     
@@ -556,72 +556,6 @@ function loadShiftCounts(spreadsheet) {
   }
 }
 
-// doGetのテスト関数
-function testDoGet() {
-  Logger.log('=== doGetテスト開始 ===');
-  const mockEvent = {
-    parameter: {
-      type: 'loadShiftCounts'
-    }
-  };
-  const result = doGet(mockEvent);
-  Logger.log('doGetの結果:', result.getContent());
-  Logger.log('=== doGetテスト終了 ===');
-}
-
-// デバッグ用のテスト関数
-function testLoadShiftCounts() {
-  Logger.log('=== テスト関数開始 ===');
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // シートの存在確認
-  const shiftSheet = spreadsheet.getSheetByName('シフト');
-  Logger.log('シフトシートが見つかりました:', shiftSheet !== null);
-  
-  if (shiftSheet) {
-    // データの確認
-    const data = shiftSheet.getDataRange().getValues();
-    Logger.log('データ行数:', data.length);
-    Logger.log('ヘッダー行:', JSON.stringify(data[0]));
-    
-    // 2025-07-23の13:00-13:30に関連するデータを詳細確認
-    Logger.log('=== 2025-07-23の13:00-13:30関連データ ===');
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      if (row.length >= 6) {
-        const dateValue = row[4]; // E列
-        const timeSlot = row[5];  // F列
-        
-        let dateStr = '';
-        if (dateValue instanceof Date) {
-          dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-        } else if (typeof dateValue === 'string') {
-          dateStr = dateValue;
-        }
-        
-        if (dateStr === '2025-07-23' && timeSlot === '13:00-13:30') {
-          Logger.log(`発見: 行${i+1} - ユーザー: ${row[2]}, 日付: ${dateStr}, 時間: "${timeSlot}"`);
-          Logger.log(`  全データ: ${JSON.stringify(row)}`);
-        }
-      }
-    }
-  }
-  
-  const result = loadShiftCounts(spreadsheet);
-  Logger.log('=== テスト関数終了 ===');
-  Logger.log('結果:', JSON.stringify(result));
-  
-  // 2025-07-23の結果を詳細表示
-  if (result['2025-07-23']) {
-    Logger.log('2025-07-23の詳細結果:');
-    for (const timeSlot in result['2025-07-23']) {
-      Logger.log(`  "${timeSlot}": ${result['2025-07-23'][timeSlot]}`);
-    }
-  }
-  
-  return result;
-}
-
 function syncAllShiftsToCalendar() {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -679,6 +613,40 @@ function syncAllShiftsToCalendar() {
     
   } catch (error) {
     Logger.log('一括同期に失敗しました: ' + error.toString());
+    throw error;
+  }
+}
+
+// テスト用：7/28の13:00-13:30にシフト申請を追加する関数
+function addTestShiftFor728() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    
+    if (!shiftSheet) {
+      throw new Error('「シフト」シートが見つかりません');
+    }
+    
+    // テスト用のシフト申請を追加
+    shiftSheet.appendRow([
+      new Date(), // A列: 登録日時
+      'test_user_id', // B列: ユーザーID
+      'テストユーザー', // C列: ユーザー名
+      'test@example.com', // D列: メールアドレス
+      '2025-07-28', // E列: シフト日付
+      '13:00-13:30', // F列: 時間帯
+      'テスト用シフト' // G列: 内容
+    ]);
+    
+    Logger.log('7/28の13:00-13:30にテスト用シフト申請を追加しました');
+    
+    // 追加後の状態を確認
+    const result = loadShiftCounts(spreadsheet);
+    Logger.log('追加後のシフト申請数:', JSON.stringify(result));
+    
+    return result;
+  } catch (error) {
+    Logger.log('テスト用シフト申請の追加に失敗しました: ' + error.toString());
     throw error;
   }
 }

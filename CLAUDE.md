@@ -40,6 +40,100 @@ npm run deploy:gas
 
 This command automatically updates the Google Apps Script project with the latest code from `gas/google-apps-script.js`.
 
+## Current Specifications
+
+### Application Overview
+This is a Japanese shift management web application with Google OAuth authentication. Users can:
+- View and manage work shifts
+- Set capacity (required staff) for each date
+- Submit shift requests for specific time slots
+- View remaining available slots in real-time
+
+### Core Features
+
+#### 1. Authentication & Authorization
+- **Google OAuth Integration**: Uses Google Identity Services (GSI) for login
+- **Email-based Authorization**: Only users with authorized email addresses can access
+- **Admin Role Management**: Admin users have additional permissions for capacity settings
+
+#### 2. Shift Management System
+- **Time Slots**: 30-minute intervals from 13:00 to 18:00 (13:00-13:30, 13:30-14:00, etc.)
+- **Date Range**: Supports shifts from current date through next fiscal year (March 31)
+- **Real-time Availability**: Shows remaining slots based on capacity settings and current applications
+
+#### 3. Capacity Management
+- **Default Capacity by Day of Week**:
+  - Sunday/Saturday: 0 people (no shifts)
+  - Wednesday: 2 people
+  - Monday/Tuesday/Thursday/Friday: 3 people
+- **Custom Capacity Setting**: Admin users can override default capacity for specific dates
+- **Real-time Updates**: Capacity changes immediately reflect in available slots
+
+#### 4. Data Storage & Backend
+- **Google Spreadsheet Backend**: All data stored in Google Sheets
+- **Google Apps Script API**: Handles server-side logic and data processing
+- **Google Calendar Integration**: Automatically syncs approved shifts to Google Calendar
+
+### Technical Architecture
+
+#### Frontend (Client-side)
+- **Pure HTML/CSS/JavaScript**: No build system or frameworks
+- **Responsive Design**: Works on desktop and mobile devices
+- **Real-time UI Updates**: Immediate feedback on capacity and availability changes
+
+#### Backend (Google Apps Script)
+- **RESTful API**: Handles GET/POST requests for data operations
+- **Spreadsheet Integration**: Direct integration with Google Sheets for data persistence
+- **Calendar Sync**: Automatic event creation in Google Calendar
+- **Property Service**: Secure storage of configuration settings
+
+#### Data Structure
+**Spreadsheet Sheets**:
+1. **シフト (Shifts)**: Individual shift applications
+   - Columns: Timestamp, UserID, UserName, Email, Date, TimeSlot, Content
+2. **人数設定 (Capacity)**: Daily capacity settings  
+   - Columns: Timestamp, Date, Capacity, UpdaterID, UpdaterName
+3. **ユーザー (Users)**: User registration data
+   - Columns: Timestamp, UserID, Name, Email, ProfileImageURL
+
+### Key Algorithms
+
+#### Remaining Slots Calculation
+```
+remainingSlots = configuredCapacity - currentApplications
+```
+
+#### Default Capacity Assignment
+- Based on day of week with configurable overrides
+- Automatically initializes capacity for entire fiscal year
+
+#### Time Slot Generation
+- Generates 30-minute intervals programmatically
+- Supports flexible time range configuration
+
+### Development & Deployment
+
+#### Local Development
+- Use `npm run dev` to start local server on port 8081
+- Google OAuth requires localhost or HTTPS
+
+#### Backend Deployment  
+- Use `npm run deploy:gas` to deploy Google Apps Script code
+- Automatically updates backend with latest changes
+
+#### Configuration
+- Google OAuth Client ID configured in both frontend and backend
+- Calendar ID stored securely in Google Apps Script Properties Service
+- Authorized user emails managed through configuration
+
+### Security Considerations
+- **Client-side Token Processing**: JWT tokens decoded on client-side only
+- **Email-based Access Control**: Restricts access to authorized users only
+- **No Server-side Session**: Stateless authentication using Google tokens
+- **Secure Configuration**: Sensitive settings stored in Google Apps Script Properties
+
+This system provides a complete shift management solution with real-time availability tracking and seamless integration with Google services.
+
 ## Architecture
 
 ### File Structure
