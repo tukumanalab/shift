@@ -1561,6 +1561,19 @@ async function openDateDetailModal(dateKey) {
     // コンテナをクリア
     container.innerHTML = '';
     
+    // 全選択/解除ボタンを追加
+    const toggleAllDiv = document.createElement('div');
+    toggleAllDiv.style.marginBottom = '15px';
+    toggleAllDiv.style.textAlign = 'center';
+    
+    const toggleAllBtn = document.createElement('button');
+    toggleAllBtn.className = 'toggle-all-btn';
+    toggleAllBtn.textContent = 'すべて選択';
+    toggleAllBtn.onclick = () => toggleAllTimeSlots();
+    
+    toggleAllDiv.appendChild(toggleAllBtn);
+    container.appendChild(toggleAllDiv);
+    
     // 各時間枠を表示
     slots.forEach(slot => {
         const slotDiv = document.createElement('div');
@@ -1664,6 +1677,41 @@ function toggleTimeSlotSelection(slotDiv, slot) {
     updateSubmitButton();
 }
 
+// すべての時間枠を選択/解除
+function toggleAllTimeSlots() {
+    const selectableSlots = document.querySelectorAll('.date-detail-slot.selectable');
+    const toggleBtn = document.querySelector('.toggle-all-btn');
+    
+    if (!selectableSlots.length) return;
+    
+    // 現在の選択状態を確認（選択可能なスロットがすべて選択されているか）
+    const allSelected = Array.from(selectableSlots).every(slot => slot.classList.contains('selected'));
+    
+    if (allSelected) {
+        // すべて解除
+        selectableSlots.forEach(slotDiv => {
+            if (slotDiv.classList.contains('selected')) {
+                slotDiv.classList.remove('selected');
+                const slot = slotDiv.dataset.slot;
+                selectedTimeSlots = selectedTimeSlots.filter(s => s !== slot);
+            }
+        });
+        toggleBtn.textContent = 'すべて選択';
+    } else {
+        // すべて選択
+        selectableSlots.forEach(slotDiv => {
+            if (!slotDiv.classList.contains('selected')) {
+                slotDiv.classList.add('selected');
+                const slot = slotDiv.dataset.slot;
+                selectedTimeSlots.push(slot);
+            }
+        });
+        toggleBtn.textContent = 'すべて解除';
+    }
+    
+    updateSubmitButton();
+}
+
 // 申請ボタンの有効/無効を更新
 function updateSubmitButton() {
     const submitBtn = document.querySelector('.submit-btn');
@@ -1673,6 +1721,14 @@ function updateSubmitButton() {
     } else {
         submitBtn.disabled = true;
         submitBtn.textContent = '時間枠を選択してください';
+    }
+    
+    // 全選択/解除ボタンのテキストも更新
+    const toggleBtn = document.querySelector('.toggle-all-btn');
+    if (toggleBtn) {
+        const selectableSlots = document.querySelectorAll('.date-detail-slot.selectable');
+        const allSelected = Array.from(selectableSlots).every(slot => slot.classList.contains('selected'));
+        toggleBtn.textContent = allSelected ? 'すべて解除' : 'すべて選択';
     }
 }
 
