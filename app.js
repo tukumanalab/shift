@@ -355,8 +355,7 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                         const defaultCapacity = getDefaultCapacity(dayOfWeek);
                         capacityInfo.textContent = `${defaultCapacity}`;
                         
-                        // クリックイベントでトグル
-                        slotDiv.onclick = () => handleTimeSlotToggle(dateKey, slot, slotDiv);
+                        // カレンダー上では選択不可（表示のみ）
                         
                         slotDiv.appendChild(timeLabel);
                         slotDiv.appendChild(capacityInfo);
@@ -365,15 +364,11 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     
                     requestInfo.appendChild(timeSlotsContainer);
                     
-                    // 申請ボタン
-                    const applyBtn = document.createElement('button');
-                    applyBtn.className = 'inline-apply-btn';
-                    applyBtn.textContent = '申請';
-                    applyBtn.id = `apply-${dateKey}`;
-                    applyBtn.onclick = () => submitInlineShiftRequest(dateKey, currentDate);
-                    applyBtn.disabled = true; // 最初は無効化
+                    // 日付詳細表示用のクリックイベント（日付全体をクリック可能に）
+                    cell.classList.add('clickable-date');
+                    cell.onclick = () => openDateDetailModal(dateKey);
                     
-                    requestInfo.appendChild(applyBtn);
+                    // カレンダー上は表示のみ（申請ボタンなし）
                     
                     cell.appendChild(requestInfo);
                     cell.setAttribute('data-date', dateKey);
@@ -893,13 +888,10 @@ async function loadShiftRequestForm() {
             fetchCapacityFromSpreadsheet(),
             fetchShiftCountsFromSpreadsheet()
         ]);
-
-        console.log("***", shiftCounts)
         
         // グローバル変数に保存
         currentShiftCounts = shiftCounts;
-
-        console.log(currentShiftCounts)
+        window.currentCapacityData = capacityData;
         
         // コンテナをクリアしてカレンダーを生成
         container.innerHTML = '<div id="shiftRequestCalendarContainer" class="calendar-container"></div>';
@@ -1063,117 +1055,9 @@ let currentShiftRequestDate = null;
 let currentShiftRequestDateObj = null;
 let currentShiftCapacity = 0;
 let currentShiftCounts = {};
-let selectedTimeSlots = {}; // 日付ごとの選択された時間枠を管理
+// 不要な変数を削除（日付詳細モーダル用のselectedTimeSlotsとは別）
 
-function handleTimeSlotToggle(dateKey, slot, slotElement) {
-    console.log('handleTimeSlotToggle called:', dateKey, slot, slotElement);
-    
-    // 残り容量が0の場合は選択不可
-    if (slotElement.classList.contains('disabled')) {
-        console.log('スロットが無効化されています');
-        return;
-    }
-    
-    if (!selectedTimeSlots[dateKey]) {
-        selectedTimeSlots[dateKey] = [];
-    }
-    
-    const isCurrentlySelected = slotElement.dataset.selected === 'true';
-    console.log('現在の選択状態:', isCurrentlySelected);
-    
-    if (isCurrentlySelected) {
-        // 選択解除
-        console.log('選択解除中...');
-        slotElement.dataset.selected = 'false';
-        slotElement.classList.remove('selected');
-        const index = selectedTimeSlots[dateKey].indexOf(slot);
-        if (index > -1) {
-            selectedTimeSlots[dateKey].splice(index, 1);
-        }
-        console.log('選択解除完了、クラス:', slotElement.className);
-    } else {
-        // 選択
-        console.log('選択中...');
-        slotElement.dataset.selected = 'true';
-        slotElement.classList.add('selected');
-        if (!selectedTimeSlots[dateKey].includes(slot)) {
-            selectedTimeSlots[dateKey].push(slot);
-        }
-        console.log('選択完了、クラス:', slotElement.className);
-    }
-    
-    // 申請ボタンの状態を更新
-    const applyBtn = document.getElementById(`apply-${dateKey}`);
-    if (applyBtn) {
-        applyBtn.disabled = !selectedTimeSlots[dateKey] || selectedTimeSlots[dateKey].length === 0;
-    }
-}
-
-async function submitInlineShiftRequest(dateKey, dateObj) {
-    if (!currentUser) {
-        alert('ログインが必要です。');
-        return;
-    }
-    
-    const selectedSlots = selectedTimeSlots[dateKey] || [];
-    if (selectedSlots.length === 0) {
-        alert('時間枠を選択してください。');
-        return;
-    }
-    
-    // ボタンを無効化
-    const submitBtn = document.getElementById(`apply-${dateKey}`);
-    submitBtn.disabled = true;
-    submitBtn.textContent = '申請中...';
-    
-    try {
-        // 各時間枠について申請を送信
-        for (const slot of selectedSlots) {
-            const shiftData = {
-                type: 'shift',
-                userId: currentUser.sub,
-                userName: currentUser.name,
-                userEmail: currentUser.email,
-                date: dateKey,
-                time: slot,
-                content: '通常業務' // デフォルトの内容
-            };
-            
-            const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                mode: 'no-cors',
-                body: JSON.stringify(shiftData)
-            });
-            
-            // no-corsモードでは詳細なレスポンスを取得できないため、
-            // 少し待ってから次の申請を送信
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        alert(`${selectedSlots.length}つの時間枠でシフト申請を送信しました。`);
-        
-        // 選択をクリア
-        selectedTimeSlots[dateKey] = [];
-        const slots = document.querySelectorAll(`div[id^="slot-${dateKey}-"]`);
-        slots.forEach(slot => {
-            slot.classList.remove('selected');
-            slot.dataset.selected = 'false';
-        });
-        
-        // データを再読み込み
-        await loadShiftRequestForm();
-        
-    } catch (error) {
-        console.error('シフト申請の送信に失敗しました:', error);
-        alert('シフト申請の送信に失敗しました。もう一度お試しください。');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '申請';
-    }
-}
+// submitInlineShiftRequest関数を削除（日付詳細モーダルから申請するため不要）
 
 function applyForShift(dateKey, dateObj) {
     if (!currentUser) {
@@ -1379,6 +1263,303 @@ async function submitShiftRequest() {
     }
 }
 
+// グローバル変数：選択中の日付と時間枠
+let currentDetailDateKey = null;
+let selectedTimeSlots = [];
+
+// 日付詳細モーダルを開く関数
+function openDateDetailModal(dateKey) {
+    const modal = document.getElementById('dateDetailModal');
+    const title = document.getElementById('dateDetailTitle');
+    const container = document.getElementById('dateDetailContainer');
+    
+    // 日付を表示用にフォーマット
+    const dateObj = new Date(dateKey);
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1;
+    const day = dateObj.getDate();
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    const weekday = weekdays[dateObj.getDay()];
+    
+    // その日付の最大容量を取得
+    let maxCapacityForDate = 0;
+    if (typeof getDefaultCapacity === 'function') {
+        const dayOfWeek = dateObj.getDay();
+        maxCapacityForDate = getDefaultCapacity(dayOfWeek);
+    }
+    
+    // グローバルな人数設定があれば上書き
+    if (window.currentCapacityData) {
+        const capacityItem = window.currentCapacityData.find(item => item.date === dateKey);
+        if (capacityItem) {
+            maxCapacityForDate = capacityItem.capacity;
+        }
+    }
+    
+    
+    // 人数枠が0人の場合はダイアログを表示しない
+    if (maxCapacityForDate === 0) {
+        return;
+    }
+    
+    // グローバル変数を設定
+    currentDetailDateKey = dateKey;
+    selectedTimeSlots = [];
+    
+    title.textContent = `${year}年${month}月${day}日 (${weekday}) のシフト枠`;
+    
+    // 時間枠を生成
+    const startHour = 13;
+    const endHour = 18;
+    const slots = [];
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+        slots.push(`${hour}:00-${hour}:30`);
+        slots.push(`${hour}:30-${hour + 1}:00`);
+    }
+    
+    // コンテナをクリア
+    container.innerHTML = '';
+    
+    // 各時間枠を表示
+    slots.forEach(slot => {
+        const slotDiv = document.createElement('div');
+        slotDiv.className = 'date-detail-slot';
+        slotDiv.dataset.slot = slot;
+        
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'date-detail-slot-time';
+        timeDiv.textContent = slot;
+        
+        const capacityDiv = document.createElement('div');
+        capacityDiv.className = 'date-detail-slot-capacity';
+        
+        // その時間枠の現在の申請数を取得
+        let currentCount = 0;
+        if (currentShiftCounts && currentShiftCounts[dateKey] && currentShiftCounts[dateKey][slot]) {
+            currentCount = currentShiftCounts[dateKey][slot];
+        }
+        
+        const remainingCount = Math.max(0, maxCapacityForDate - currentCount);
+        
+        const capacityNumber = document.createElement('div');
+        capacityNumber.className = 'date-detail-capacity-number';
+        capacityNumber.textContent = remainingCount;
+        
+        // 残り人数に応じてクラスを設定
+        if (remainingCount === 0) {
+            capacityNumber.classList.add('capacity-zero');
+            slotDiv.classList.add('disabled');
+        } else if (remainingCount === 1) {
+            capacityNumber.classList.add('capacity-low');
+            slotDiv.classList.add('selectable');
+        } else if (remainingCount <= maxCapacityForDate / 2) {
+            capacityNumber.classList.add('capacity-medium');
+            slotDiv.classList.add('selectable');
+        } else {
+            capacityNumber.classList.add('capacity-high');
+            slotDiv.classList.add('selectable');
+        }
+        
+        const capacityLabel = document.createElement('div');
+        capacityLabel.className = 'date-detail-capacity-label';
+        capacityLabel.textContent = '残り枠';
+        
+        capacityDiv.appendChild(capacityNumber);
+        capacityDiv.appendChild(capacityLabel);
+        
+        slotDiv.appendChild(timeDiv);
+        slotDiv.appendChild(capacityDiv);
+        
+        // 選択可能な場合はクリックイベントを追加
+        if (remainingCount > 0) {
+            slotDiv.onclick = () => toggleTimeSlotSelection(slotDiv, slot);
+        }
+        
+        container.appendChild(slotDiv);
+    });
+    
+    // 備考欄は削除済み
+    
+    // 申請ボタンを無効化
+    updateSubmitButton();
+    
+    modal.style.display = 'flex';
+}
+
+// 時間枠の選択/解除をトグル
+function toggleTimeSlotSelection(slotDiv, slot) {
+    if (slotDiv.classList.contains('disabled')) return;
+    
+    const isSelected = slotDiv.classList.contains('selected');
+    
+    if (isSelected) {
+        // 選択解除
+        slotDiv.classList.remove('selected');
+        selectedTimeSlots = selectedTimeSlots.filter(s => s !== slot);
+    } else {
+        // 選択
+        slotDiv.classList.add('selected');
+        selectedTimeSlots.push(slot);
+    }
+    
+    updateSubmitButton();
+}
+
+// 申請ボタンの有効/無効を更新
+function updateSubmitButton() {
+    const submitBtn = document.querySelector('.submit-btn');
+    if (selectedTimeSlots.length > 0) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = `選択した${selectedTimeSlots.length}つの時間枠で申請`;
+    } else {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '時間枠を選択してください';
+    }
+}
+
+// 日付詳細モーダルを閉じる関数
+function closeDateDetailModal() {
+    const modal = document.getElementById('dateDetailModal');
+    modal.style.display = 'none';
+    
+    // 選択状態をリセット
+    currentDetailDateKey = null;
+    selectedTimeSlots = [];
+}
+
+// 日付詳細モーダルでのシフト申請
+async function submitDateDetailShiftRequest() {
+    console.log('submitDateDetailShiftRequest called');
+    
+    if (!currentUser) {
+        alert('ログインが必要です。');
+        return;
+    }
+    
+    if (!currentDetailDateKey || selectedTimeSlots.length === 0) {
+        alert('時間枠を選択してください。');
+        return;
+    }
+    
+    const remarks = 'シフト'; // デフォルトの内容
+    
+    // ボタンを無効化してローディング表示
+    const modal = document.getElementById('dateDetailModal');
+    const submitBtn = modal.querySelector('.submit-btn');
+    const cancelBtn = modal.querySelector('.cancel-btn');
+    
+    if (!submitBtn || !cancelBtn) {
+        console.error('ボタンが見つかりません');
+        return;
+    }
+    
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+    submitBtn.innerHTML = '<span style="display: inline-block; margin-right: 5px;">⏳</span>申請中...';
+    
+    try {
+        // 各時間枠ごとにシフトデータを作成して送信
+        for (const timeSlot of selectedTimeSlots) {
+            const shiftData = {
+                type: 'shift',
+                userId: currentUser.sub,
+                userName: currentUser.name,
+                userEmail: currentUser.email,
+                date: currentDetailDateKey,
+                time: timeSlot,
+                content: remarks || 'シフト'
+            };
+            
+            await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                mode: 'no-cors',
+                body: JSON.stringify(shiftData)
+            });
+        }
+        
+        const dateObj = new Date(currentDetailDateKey);
+        const month = dateObj.getMonth() + 1;
+        const day = dateObj.getDate();
+        
+        alert(`${month}月${day}日の\n${selectedTimeSlots.join('\n')}\nにシフトを申請しました。`);
+        
+        // 申請した日付を保存（モーダルを閉じる前に）
+        const appliedDateKey = currentDetailDateKey;
+        
+        // モーダルを閉じる
+        closeDateDetailModal();
+        
+        // シフト申請数を再読み込みして申請した日付のデータを更新
+        const shiftCounts = await fetchShiftCountsFromSpreadsheet();
+        currentShiftCounts = shiftCounts;
+        
+        // 申請した日付のデータのみを更新
+        updateSingleDateCapacity(appliedDateKey, window.currentCapacityData || [], shiftCounts);
+        
+    } catch (error) {
+        console.error('シフト申請の保存に失敗しました:', error);
+        alert('シフト申請の保存に失敗しました。再度お試しください。');
+    } finally {
+        submitBtn.disabled = false;
+        cancelBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+}
+
+// 特定の日付のみの容量データを更新する関数
+function updateSingleDateCapacity(dateKey, capacityData, shiftCounts = {}) {
+    // 人数設定データを日付をキーとするマップに変換
+    const capacityMap = {};
+    capacityData.forEach(item => {
+        if (item.date && item.date !== '') {
+            capacityMap[item.date] = item.capacity;
+        }
+    });
+    
+    // 容量表示を更新（シフト申請画面用）
+    const capacityElement = document.getElementById(`capacity-${dateKey}`);
+    if (capacityElement) {
+        // その日付の最大容量を取得
+        let maxCapacityForDate = capacityMap[dateKey];
+        if (maxCapacityForDate === undefined) {
+            const date = new Date(dateKey);
+            const dayOfWeek = date.getDay();
+            maxCapacityForDate = getDefaultCapacity(dayOfWeek);
+        }
+        
+        // その日に設定されているシフト人数のみを表示
+        capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+    }
+    
+    // インライン時間枠の容量も更新（各時間枠の残り人数表示）
+    updateInlineTimeSlotCapacity(dateKey, shiftCounts, capacityMap);
+    
+    // 日付セルの背景色も更新（募集がない日はグレーアウト）
+    const dateCell = document.querySelector(`[data-date="${dateKey}"]`);
+    if (dateCell) {
+        let maxCapacityForDate = capacityMap[dateKey];
+        if (maxCapacityForDate === undefined) {
+            const date = new Date(dateKey);
+            const dayOfWeek = date.getDay();
+            maxCapacityForDate = getDefaultCapacity(dayOfWeek);
+        }
+        
+        // 募集人数が0の日はクリック不可にする
+        if (maxCapacityForDate === 0) {
+            dateCell.style.backgroundColor = '#f5f5f5';
+            dateCell.style.cursor = 'default';
+        } else {
+            dateCell.style.backgroundColor = '';
+            dateCell.style.cursor = 'pointer';
+        }
+    }
+}
+
 window.onload = function () {
     document.getElementById('g_id_onload').setAttribute('data-client_id', GOOGLE_CLIENT_ID);
     
@@ -1393,4 +1574,20 @@ window.onload = function () {
     );
     
     setupTabSwitching();
+    
+    // 日付詳細モーダルのクローズイベント
+    document.getElementById('dateDetailClose').onclick = closeDateDetailModal;
+    
+    // モーダル外クリックで閉じる
+    window.onclick = function(event) {
+        const dateDetailModal = document.getElementById('dateDetailModal');
+        const shiftRequestModal = document.getElementById('shiftRequestModal');
+        
+        if (event.target === dateDetailModal) {
+            closeDateDetailModal();
+        }
+        if (event.target === shiftRequestModal) {
+            closeShiftRequestModal();
+        }
+    };
 };

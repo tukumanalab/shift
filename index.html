@@ -450,7 +450,7 @@
             padding: 20px;
             border-top: 1px solid #e0e0e0;
             display: flex;
-            justify-content: flex-end;
+            justify-content: center;
             gap: 10px;
         }
         .modal-btn {
@@ -729,6 +729,152 @@
             color: #388e3c;
             border: 1px solid rgba(76, 175, 80, 0.3);
         }
+
+        /* 日付詳細モーダル用スタイル */
+        .date-detail-slot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+            transition: background-color 0.2s;
+        }
+
+        .date-detail-slot:hover {
+            background: #f0f0f0;
+        }
+
+        .date-detail-slot-time {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            min-width: 100px;
+        }
+
+        .date-detail-slot-capacity {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-detail-capacity-number {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .date-detail-capacity-number.capacity-zero {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .date-detail-capacity-number.capacity-low {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .date-detail-capacity-number.capacity-medium {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .date-detail-capacity-number.capacity-high {
+            background: #e8f5e8;
+            color: #388e3c;
+        }
+
+        .date-detail-capacity-label {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .clickable-date {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .clickable-date:hover {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+
+        /* 日付詳細モーダルで選択可能なスロット */
+        .date-detail-slot.selectable {
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .date-detail-slot.selectable:hover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+
+        .date-detail-slot.selected {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+
+        .date-detail-slot.disabled {
+            background: #f5f5f5;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        .date-detail-slot.disabled:hover {
+            background: #f5f5f5;
+            border-color: transparent;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .modal-btn.cancel-btn {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .modal-btn.cancel-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .modal-btn.submit-btn {
+            background: #2196f3;
+            color: white;
+        }
+
+        .modal-btn.submit-btn:hover {
+            background: #1976d2;
+        }
+
+        .modal-btn:disabled {
+            background: #ccc;
+            color: #888;
+            cursor: not-allowed;
+        }
+        
+        .modal-btn.submit-btn:disabled {
+            background: #90CAF9;
+            color: #1565C0;
+            position: relative;
+        }
         
         .inline-time-slot.selected .inline-time-slot-capacity {
             background: rgba(255,255,255,0.9) !important;
@@ -985,14 +1131,30 @@
                 <div id="timeSlotContainer">
                     <!-- 時間枠が動的に生成されます -->
                 </div>
-                <div class="remarks-section">
-                    <label for="shiftRemarks" class="remarks-label">備考:</label>
-                    <textarea id="shiftRemarks" class="remarks-textarea" rows="3" placeholder="特記事項があれば入力してください"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="submit-btn" onclick="submitShiftRequest()">申請する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日付詳細表示モーダル -->
+    <div id="dateDetailModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="dateDetailTitle">日付詳細</h3>
+                <span class="modal-close" id="dateDetailClose">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="dateDetailContainer">
+                    <!-- シフト枠詳細が動的に生成されます -->
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="modal-btn cancel-btn" onclick="closeShiftRequestModal()">キャンセル</button>
-                <button class="modal-btn submit-btn" onclick="submitShiftRequest()">申請する</button>
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn submit-btn" onclick="submitDateDetailShiftRequest()">選択した時間枠で申請</button>
+                    <button type="button" class="modal-btn cancel-btn" onclick="closeDateDetailModal()">キャンセル</button>
+                </div>
             </div>
         </div>
     </div>
