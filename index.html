@@ -921,13 +921,32 @@
         }
 
         .date-detail-slot.selectable:hover {
-            background: #e3f2fd;
-            border-color: #2196f3;
+            background: #e8f5e9;
+            border-color: #4CAF50;
         }
 
         .date-detail-slot.selected {
-            background: #e3f2fd;
-            border-color: #2196f3;
+            background: #2196f3;
+            border-color: #1976d2;
+            color: white;
+        }
+        
+        .date-detail-slot.selected:hover {
+            background: #1976d2;
+            border-color: #1565c0;
+        }
+        
+        .date-detail-slot.selected .date-detail-slot-time {
+            color: white;
+        }
+        
+        .date-detail-slot.selected .date-detail-capacity-label {
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .date-detail-slot.selected .date-detail-capacity-number {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
         }
 
         .date-detail-slot.disabled {

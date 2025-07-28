@@ -368,7 +368,7 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     editMode.appendChild(controls);
                     cell.appendChild(editMode);
                 } else if (isRequestMode) {
-                    // シフト申請モードの場合は時間枠を直接表示
+                    // シフト申請モードの場合は人数表示と申請ボタン
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
                     
                     const requestInfo = document.createElement('div');
@@ -382,55 +382,18 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     capacityInfo.innerHTML = `<span class="capacity-number">${getDefaultCapacity(dayOfWeek)}</span><span class="capacity-unit">人</span>`;
                     requestInfo.appendChild(capacityInfo);
                     
-                    const timeSlotsContainer = document.createElement('div');
-                    timeSlotsContainer.className = 'inline-time-slots';
-                    timeSlotsContainer.id = `timeslots-${dateKey}`;
-                    
-                    // 時間枠を生成（13:00-18:00、30分単位）
-                    const startHour = 13;
-                    const endHour = 18;
-                    const slots = [];
-                    
-                    for (let hour = startHour; hour < endHour; hour++) {
-                        slots.push(`${hour}:00-${hour}:30`);
-                        slots.push(`${hour}:30-${hour + 1}:00`);
+                    // 申請ボタン
+                    const defaultCapacity = getDefaultCapacity(dayOfWeek);
+                    if (defaultCapacity > 0) {
+                        const applyButton = document.createElement('button');
+                        applyButton.className = 'inline-apply-btn';
+                        applyButton.textContent = '申請';
+                        applyButton.onclick = (e) => {
+                            e.stopPropagation();
+                            openDateDetailModal(dateKey);
+                        };
+                        requestInfo.appendChild(applyButton);
                     }
-                    
-                    slots.forEach(slot => {
-                        const slotDiv = document.createElement('div');
-                        slotDiv.className = 'inline-time-slot';
-                        slotDiv.id = `slot-${dateKey}-${slot.replace(/[:-]/g, '')}`;
-                        slotDiv.dataset.slot = slot;
-                        slotDiv.dataset.selected = 'false';
-                        
-                        // トグル式ラベル（クリック可能）
-                        const timeLabel = document.createElement('span');
-                        timeLabel.className = 'inline-time-label';
-                        // 時間表示を短縮（例: "13:00-13:30" → "13:00-30"）
-                        const shortTime = slot.replace(/(\d+):(\d+)-(\d+):(\d+)/, '$1:$2-$4');
-                        timeLabel.textContent = shortTime;
-                        
-                        const capacityInfo = document.createElement('span');
-                        capacityInfo.className = 'inline-time-slot-capacity';
-                        capacityInfo.id = `capacity-${dateKey}-${slot.replace(/[:-]/g, '')}`;
-                        // デフォルト容量を使用（後でupdateInlineTimeSlotCapacityで正しい値に更新される）
-                        const defaultCapacity = getDefaultCapacity(dayOfWeek);
-                        capacityInfo.textContent = `${defaultCapacity}`;
-                        
-                        // カレンダー上では選択不可（表示のみ）
-                        
-                        slotDiv.appendChild(timeLabel);
-                        slotDiv.appendChild(capacityInfo);
-                        timeSlotsContainer.appendChild(slotDiv);
-                    });
-                    
-                    requestInfo.appendChild(timeSlotsContainer);
-                    
-                    // 日付詳細表示用のクリックイベント（日付全体をクリック可能に）
-                    cell.classList.add('clickable-date');
-                    cell.onclick = () => openDateDetailModal(dateKey);
-                    
-                    // カレンダー上は表示のみ（申請ボタンなし）
                     
                     cell.appendChild(requestInfo);
                     cell.setAttribute('data-date', dateKey);
@@ -1195,15 +1158,12 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
         }
     });
     
-    // 表示されているすべての日付の時間枠を更新
+    // 表示されているすべての日付の容量を更新
     const allDateElements = document.querySelectorAll('[data-date]');
     allDateElements.forEach(element => {
         const dateKey = element.getAttribute('data-date');
         if (dateKey) {
-            // 時間枠ごとの容量を更新
-            updateInlineTimeSlotCapacity(dateKey, shiftCounts, capacityMap);
-            
-            // 日付全体の表示を更新（利用可能な時間枠数で計算）
+            // 日付全体の表示を更新
             const capacityElement = document.getElementById(`capacity-${dateKey}`);
             if (capacityElement) {
                 // その日付の最大容量を取得
@@ -1216,66 +1176,33 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
                 
                 // その日に設定されているシフト人数のみを表示
                 capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+                
+                // 申請ボタンの表示/非表示を更新
+                const requestInfo = document.getElementById(`request-${dateKey}`);
+                if (requestInfo) {
+                    const existingButton = requestInfo.querySelector('.inline-apply-btn');
+                    if (maxCapacityForDate > 0 && !existingButton) {
+                        // ボタンがなくて容量がある場合は追加
+                        const applyButton = document.createElement('button');
+                        applyButton.className = 'inline-apply-btn';
+                        applyButton.textContent = '申請';
+                        applyButton.onclick = (e) => {
+                            e.stopPropagation();
+                            openDateDetailModal(dateKey);
+                        };
+                        requestInfo.appendChild(applyButton);
+                    } else if (maxCapacityForDate === 0 && existingButton) {
+                        // ボタンがあって容量がない場合は削除
+                        existingButton.remove();
+                    }
+                }
             }
         }
     });
 }
 
-function updateInlineTimeSlotCapacity(dateKey, shiftCounts = {}, capacityMap = {}) {
-    // 13:00から18:00まで、30分単位で時間枠を生成
-    const startHour = 13;
-    const endHour = 18;
-    const slots = [];
-    
-    for (let hour = startHour; hour < endHour; hour++) {
-        slots.push(`${hour}:00-${hour}:30`);
-        slots.push(`${hour}:30-${hour + 1}:00`);
-    }
-    
-    // その日付の最大容量を取得（設定がない場合はデフォルト値を使用）
-    let maxCapacityForDate = capacityMap[dateKey];
-    if (maxCapacityForDate === undefined) {
-        // デフォルト値を計算
-        const date = new Date(dateKey);
-        const dayOfWeek = date.getDay();
-        maxCapacityForDate = getDefaultCapacity(dayOfWeek);
-    }
-    
-    slots.forEach(slot => {
-        const capacityElement = document.getElementById(`capacity-${dateKey}-${slot.replace(/[:-]/g, '')}`);
-        const slotElement = document.getElementById(`slot-${dateKey}-${slot.replace(/[:-]/g, '')}`);
-        
-        if (capacityElement && slotElement) {
-            // その日付・時間枠の現在の申請数を取得
-            const currentCount = (shiftCounts[dateKey] && shiftCounts[dateKey][slot]) || 0;
-            
-            
-            const maxCapacity = maxCapacityForDate; // その日の設定人数が各時間枠の最大人数
-            const remainingCount = Math.max(0, maxCapacity - currentCount);
-            
-            capacityElement.textContent = remainingCount;
-            
-            // 残り人数に応じてクラスを設定（色分け用）
-            capacityElement.className = 'inline-time-slot-capacity';
-            if (remainingCount === 0) {
-                capacityElement.classList.add('capacity-zero');
-                slotElement.classList.add('disabled');
-            } else if (remainingCount === 1) {
-                capacityElement.classList.add('capacity-low');
-                slotElement.classList.remove('disabled');
-            } else if (remainingCount <= maxCapacity / 2) {
-                capacityElement.classList.add('capacity-medium');
-                slotElement.classList.remove('disabled');
-            } else {
-                capacityElement.classList.add('capacity-high');
-                slotElement.classList.remove('disabled');
-            }
-        }
-    });
-}
 
 let currentShiftRequestDate = null;
-let currentShiftRequestDateObj = null;
 let currentShiftCapacity = 0;
 let currentShiftCounts = {};
 let currentUserShifts = []; // ユーザーのシフトデータをキャッシュ
@@ -1283,14 +1210,13 @@ let currentUserShifts = []; // ユーザーのシフトデータをキャッシ�
 
 // submitInlineShiftRequest関数を削除（日付詳細モーダルから申請するため不要）
 
-function applyForShift(dateKey, dateObj) {
+function applyForShift(dateKey) {
     if (!currentUser) {
         alert('ログインが必要です。');
         return;
     }
     
     currentShiftRequestDate = dateKey;
-    currentShiftRequestDateObj = dateObj;
     
     // 人数を取得
     const capacityElement = document.getElementById(`capacity-${dateKey}`);
@@ -1305,10 +1231,10 @@ function applyForShift(dateKey, dateObj) {
         return;
     }
     
-    openShiftRequestModal(dateKey, dateObj);
+    openShiftRequestModal(dateKey);
 }
 
-function openShiftRequestModal(dateKey, dateObj) {
+function openShiftRequestModal(dateKey) {
     const modal = document.getElementById('shiftRequestModal');
     const modalTitle = document.getElementById('modalTitle');
     const timeSlotContainer = document.getElementById('timeSlotContainer');
@@ -1810,7 +1736,7 @@ async function submitDateDetailShiftRequest() {
         currentShiftCounts = shiftCounts;
         
         // 申請した日付のデータのみを更新
-        updateSingleDateCapacity(appliedDateKey, window.currentCapacityData || [], shiftCounts);
+        updateSingleDateCapacity(appliedDateKey, window.currentCapacityData || []);
         
     } catch (error) {
         console.error('シフト申請の保存に失敗しました:', error);
@@ -1823,7 +1749,7 @@ async function submitDateDetailShiftRequest() {
 }
 
 // 特定の日付のみの容量データを更新する関数
-function updateSingleDateCapacity(dateKey, capacityData, shiftCounts = {}) {
+function updateSingleDateCapacity(dateKey, capacityData) {
     // 人数設定データを日付をキーとするマップに変換
     const capacityMap = {};
     capacityData.forEach(item => {
@@ -1845,10 +1771,27 @@ function updateSingleDateCapacity(dateKey, capacityData, shiftCounts = {}) {
         
         // その日に設定されているシフト人数のみを表示
         capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+        
+        // 申請ボタンの表示/非表示を更新
+        const requestInfo = document.getElementById(`request-${dateKey}`);
+        if (requestInfo) {
+            const existingButton = requestInfo.querySelector('.inline-apply-btn');
+            if (maxCapacityForDate > 0 && !existingButton) {
+                // ボタンがなくて容量がある場合は追加
+                const applyButton = document.createElement('button');
+                applyButton.className = 'inline-apply-btn';
+                applyButton.textContent = '申請';
+                applyButton.onclick = (e) => {
+                    e.stopPropagation();
+                    openDateDetailModal(dateKey);
+                };
+                requestInfo.appendChild(applyButton);
+            } else if (maxCapacityForDate === 0 && existingButton) {
+                // ボタンがあって容量がない場合は削除
+                existingButton.remove();
+            }
+        }
     }
-    
-    // インライン時間枠の容量も更新（各時間枠の残り人数表示）
-    updateInlineTimeSlotCapacity(dateKey, shiftCounts, capacityMap);
     
     // 日付セルの背景色も更新（募集がない日はグレーアウト）
     const dateCell = document.querySelector(`[data-date="${dateKey}"]`);
