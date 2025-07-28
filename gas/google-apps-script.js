@@ -42,6 +42,14 @@ function doGet(e) {
       return ContentService
         .createTextOutput(JSON.stringify({success: true, data: shiftCounts}))
         .setMimeType(ContentService.MimeType.JSON);
+        
+    } else if (params.type === 'checkDuplicate' && params.userId && params.date && params.time) {
+      // 重複チェック
+      const isDuplicate = checkDuplicateShift(spreadsheet, params.userId, params.date, params.time);
+      
+      return ContentService
+        .createTextOutput(JSON.stringify({success: true, isDuplicate: isDuplicate}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     return ContentService
@@ -104,7 +112,8 @@ function doPost(e) {
               error: 'duplicate',
               message: `${data.date}の${data.time}は既に申請済みです。`
             }))
-            .setMimeType(ContentService.MimeType.JSON);
+            .setMimeType(ContentService.MimeType.JSON)
+            .setStatusCode(409); // Conflict status code for duplicate
         }
       }
       
@@ -688,6 +697,48 @@ function addTestShiftFor728() {
   } catch (error) {
     Logger.log('テスト用シフト申請の追加に失敗しました: ' + error.toString());
     throw error;
+  }
+}
+
+// 重複チェック専用関数
+function checkDuplicateShift(spreadsheet, userId, date, time) {
+  try {
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    
+    if (!shiftSheet) {
+      return false; // シートが存在しない場合は重複なし
+    }
+    
+    const existingData = shiftSheet.getDataRange().getValues();
+    
+    if (existingData.length <= 1) {
+      return false; // データがない場合は重複なし
+    }
+    
+    // 重複チェック
+    const isDuplicate = existingData.slice(1).some(row => {
+      let rowDateStr = '';
+      try {
+        const dateValue = row[4]; // E列: date
+        if (dateValue instanceof Date) {
+          rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (typeof dateValue === 'string') {
+          rowDateStr = dateValue;
+        }
+      } catch (e) {
+        rowDateStr = '';
+      }
+      
+      return row[1] === userId && // B列: userId
+             rowDateStr === date && 
+             row[5] === time; // F列: time
+    });
+    
+    return isDuplicate;
+    
+  } catch (error) {
+    Logger.log('重複チェックでエラーが発生しました: ' + error.toString());
+    return false; // エラーの場合は重複なしとして扱う
   }
 }
 

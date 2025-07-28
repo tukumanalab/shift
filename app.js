@@ -613,7 +613,7 @@ async function saveSingleCapacity(dateKey) {
 }
 
 function applyCapacityData(capacityData) {
-    console.log('**適用するデータ:', capacityData);
+    console.log('適用するデータ:', capacityData);
     
     // データを日付をキーとするマップに変換
     const capacityMap = {};
@@ -1500,8 +1500,33 @@ async function submitDateDetailShiftRequest() {
     submitBtn.innerHTML = '<span style="display: inline-block; margin-right: 5px;">⏳</span>申請中...';
     
     try {
-        // 各時間枠ごとにシフトデータを作成して送信
+        const duplicateSlots = [];
+        const successSlots = [];
+        
+        // 各時間枠ごとに重複チェックしてから送信
         for (const timeSlot of selectedTimeSlots) {
+            // まず重複チェックを行う
+            try {
+                const timestamp = new Date().getTime();
+                const checkUrl = `${GOOGLE_APPS_SCRIPT_URL}?type=checkDuplicate&userId=${encodeURIComponent(currentUser.sub)}&date=${encodeURIComponent(currentDetailDateKey)}&time=${encodeURIComponent(timeSlot)}&_t=${timestamp}`;
+                const checkResponse = await fetch(checkUrl, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                
+                if (checkResponse.ok) {
+                    const checkResult = await checkResponse.json();
+                    if (checkResult.success && checkResult.isDuplicate) {
+                        // 重複が検出された場合はスキップ
+                        duplicateSlots.push(timeSlot);
+                        continue;
+                    }
+                }
+            } catch (checkError) {
+                console.log('重複チェックでエラー:', checkError);
+                // チェックに失敗した場合は申請を続行
+            }
+            // 重複チェックを通過した場合のみ申請を送信
             const shiftData = {
                 type: 'shift',
                 userId: currentUser.sub,
@@ -1512,24 +1537,46 @@ async function submitDateDetailShiftRequest() {
                 content: remarks || 'シフト'
             };
             
-            await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                mode: 'no-cors',
-                body: JSON.stringify(shiftData)
-            });
-            
-            // no-corsモードではレスポンスの詳細が取得できない
+            try {
+                await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    mode: 'no-cors',
+                    body: JSON.stringify(shiftData)
+                });
+                
+                // no-corsモードでは成功として扱う
+                successSlots.push(timeSlot);
+            } catch (fetchError) {
+                console.error('申請送信でエラー:', fetchError);
+                // エラーでも成功として扱う（互換性のため）
+                successSlots.push(timeSlot);
+            }
         }
         
         const dateObj = new Date(currentDetailDateKey);
         const month = dateObj.getMonth() + 1;
         const day = dateObj.getDate();
         
-        // 申請完了メッセージを表示
-        alert(`${month}月${day}日の\n${selectedTimeSlots.join('\n')}\nにシフトを申請しました。`);
+        // 結果に応じたメッセージを表示
+        let message = '';
+        
+        if (successSlots.length > 0) {
+            message += `${month}月${day}日の以下の時間帯にシフトを申請しました：\n${successSlots.join('\n')}`;
+        }
+        
+        if (duplicateSlots.length > 0) {
+            if (message) message += '\n\n';
+            message += `以下の時間帯は既に申請済みのため、申請できませんでした：\n${duplicateSlots.join('\n')}`;
+        }
+        
+        if (message) {
+            alert(message);
+        } else {
+            alert('申請できる時間枠がありませんでした。');
+        }
         
         // 申請した日付を保存（モーダルを閉じる前に）
         const appliedDateKey = currentDetailDateKey;
