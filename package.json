@@ -4,9 +4,9 @@
   "description": "アルバイトシフト管理アプリケーション",
   "main": "index.html",
   "scripts": {
-    "dev": "npx http-server -p 8081",
+    "dev": "npx http-server -p 8080",
     "build": "echo 'No build needed for static files'",
-    "preview": "npx http-server -p 8081",
+    "preview": "npx http-server -p 8080",
     "deploy:gas": "cd gas && ./deploy.sh"
   },
   "devDependencies": {
