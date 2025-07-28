@@ -1416,6 +1416,9 @@ async function submitShiftRequest() {
         alert(`${currentShiftRequestDate} の\n${selectedSlots.join('\n')}\nにシフトを申請しました。`);
         closeShiftRequestModal();
         
+        // 自分のシフト一覧を再読み込み
+        await loadMyShiftsToCache();
+        
     } catch (error) {
         console.error('シフト申請の保存に失敗しました:', error);
         alert('シフト申請の保存に失敗しました。再度お試しください。');
@@ -1737,6 +1740,11 @@ async function submitDateDetailShiftRequest() {
         
         // 申請した日付のデータのみを更新
         updateSingleDateCapacity(appliedDateKey, window.currentCapacityData || []);
+        
+        // 自分のシフト一覧を再読み込み
+        if (successSlots.length > 0) {
+            await loadMyShiftsToCache();
+        }
         
     } catch (error) {
         console.error('シフト申請の保存に失敗しました:', error);
