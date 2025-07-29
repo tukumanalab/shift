@@ -173,25 +173,18 @@ async function loadShiftList() {
     
     try {
         // 管理者として全員のシフトデータを取得
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=admin&_t=${timestamp}`, {
-            method: 'GET',
-            cache: 'no-cache'
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'loadMyShifts',
+            userId: 'admin'
         });
         
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                window.allShiftsData = result.data || [];
-                console.log('全員のシフトデータを読み込みました:', window.allShiftsData.length, '件');
-                generateCalendar('shiftCalendarContainer');
-            } else {
-                container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
-                console.error('シフトデータの取得に失敗:', result.error);
-            }
+        if (result.success) {
+            window.allShiftsData = result.data || [];
+            console.log('全員のシフトデータを読み込みました:', window.allShiftsData.length, '件');
+            generateCalendar('shiftCalendarContainer');
         } else {
             container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
-            console.error('シフトデータの取得リクエストが失敗しました');
+            console.error('シフトデータの取得に失敗:', result.error);
         }
     } catch (error) {
         container.innerHTML = '<p>シフトデータの読み込み中にエラーが発生しました。</p>';
