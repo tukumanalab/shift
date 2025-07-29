@@ -19,48 +19,73 @@ function doGet(e) {
     const params = e.parameter;
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     
+    // JSONP対応: callbackパラメータがある場合はJSONPレスポンスを返す
+    const callback = params.callback;
+    
+    let responseData;
+    
     if (params.type === 'loadCapacity') {
       // 人数設定データの読み込み
       const capacityData = loadCapacitySettings(spreadsheet);
-      
-      return ContentService
-        .createTextOutput(JSON.stringify({success: true, data: capacityData}))
-        .setMimeType(ContentService.MimeType.JSON);
+      responseData = {success: true, data: capacityData};
         
     } else if (params.type === 'loadMyShifts' && params.userId) {
       // ユーザーのシフトデータの読み込み
       const shiftsData = loadUserShifts(spreadsheet, params.userId);
-      
-      return ContentService
-        .createTextOutput(JSON.stringify({success: true, data: shiftsData}))
-        .setMimeType(ContentService.MimeType.JSON);
+      responseData = {success: true, data: shiftsData};
         
     } else if (params.type === 'loadShiftCounts') {
       // シフト申請数の読み込み
       const shiftCounts = loadShiftCounts(spreadsheet);
-      
-      return ContentService
-        .createTextOutput(JSON.stringify({success: true, data: shiftCounts}))
-        .setMimeType(ContentService.MimeType.JSON);
+      responseData = {success: true, data: shiftCounts};
         
     } else if (params.type === 'checkDuplicate' && params.userId && params.date && params.time) {
-      // 重複チェック
+      // 単一時間枠の重複チェック
       const isDuplicate = checkDuplicateShift(spreadsheet, params.userId, params.date, params.time);
-      
-      return ContentService
-        .createTextOutput(JSON.stringify({success: true, isDuplicate: isDuplicate}))
-        .setMimeType(ContentService.MimeType.JSON);
+      responseData = {success: true, isDuplicate: isDuplicate};
+        
+    } else if (params.type === 'checkMultipleDuplicates' && params.userId && params.date && params.timeSlots) {
+      // 複数時間枠の一括重複チェック
+      const timeSlots = JSON.parse(params.timeSlots);
+      const duplicateResults = checkMultipleDuplicates(spreadsheet, params.userId, params.date, timeSlots);
+      responseData = {success: true, duplicates: duplicateResults};
+    } else {
+      responseData = {success: false, error: 'Invalid request'};
     }
     
-    return ContentService
-      .createTextOutput(JSON.stringify({success: false, error: 'Invalid request'}))
-      .setMimeType(ContentService.MimeType.JSON);
+    // JSONP対応: callbackがある場合はJSONPレスポンス、ない場合は通常のJSONレスポンス
+    if (callback) {
+      return ContentService
+        .createTextOutput(callback + '(' + JSON.stringify(responseData) + ');')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    } else {
+      return ContentService
+        .createTextOutput(JSON.stringify(responseData))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
       
   } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({success: false, error: error.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
+    const errorResponse = {success: false, error: error.toString()};
+    const callback = e.parameter.callback;
+    
+    if (callback) {
+      return ContentService
+        .createTextOutput(callback + '(' + JSON.stringify(errorResponse) + ');')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    } else {
+      return ContentService
+        .createTextOutput(JSON.stringify(errorResponse))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
   }
+}
+
+// CORS対応のためのOPTIONSリクエスト処理
+function doOptions(e) {
+  // OPTIONSリクエストには空のレスポンスを返す
+  return ContentService
+    .createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 function doPost(e) {
@@ -72,64 +97,22 @@ function doPost(e) {
     logToDebugSheet(spreadsheet, data);
     
     if (data.type === 'shift') {
-      // シフトデータの処理
-      const shiftSheet = spreadsheet.getSheetByName('シフト');
-      
-      if (!shiftSheet) {
-        throw new Error(`「シフト」シートが見つかりません`);
+      // 単一シフトデータの処理（従来の処理）
+      const result = processSingleShiftRequest(spreadsheet, data);
+      if (!result.success) {
+        return ContentService
+          .createTextOutput(JSON.stringify(result))
+          .setMimeType(ContentService.MimeType.JSON)
+          .setStatusCode(result.statusCode || 400);
       }
       
-      // 重複チェック：同じユーザーが同じ日の同じ時間帯に既に申請していないか確認
-      const existingData = shiftSheet.getDataRange().getValues();
-
-      logToDebugSheet(spreadsheet, existingData);
+    } else if (data.type === 'multipleShifts') {
+      // 複数シフト申請の一括処理
+      const results = processMultipleShiftRequests(spreadsheet, data);
       
-      if (existingData.length > 1) { // ヘッダー行を除く
-        const isDuplicate = existingData.slice(1).some(row => {
-          // B列: userId, E列: date, F列: time
-          let rowDateStr = '';
-          try {
-            // E列の日付をYYYY-MM-DD形式に変換
-            const dateValue = row[4];
-            if (dateValue instanceof Date) {
-              rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-            } else if (typeof dateValue === 'string') {
-              rowDateStr = dateValue;
-            }
-          } catch (e) {
-            rowDateStr = '';
-          }
-          
-          return row[1] === data.userId && 
-                 rowDateStr === data.date && 
-                 row[5] === data.time;
-        });
-        
-        if (isDuplicate) {
-          return ContentService
-            .createTextOutput(JSON.stringify({
-              success: false, 
-              error: 'duplicate',
-              message: `${data.date}の${data.time}は既に申請済みです。`
-            }))
-            .setMimeType(ContentService.MimeType.JSON)
-            .setStatusCode(409); // Conflict status code for duplicate
-        }
-      }
-      
-      // シフトデータを追加
-      shiftSheet.appendRow([
-        new Date(),
-        data.userId,
-        data.userName,
-        data.userEmail,
-        data.date,
-        data.time,
-        data.content
-      ]);
-      
-      // Google Calendarに予定を追加
-      addToCalendar(data);
+      return ContentService
+        .createTextOutput(JSON.stringify(results))
+        .setMimeType(ContentService.MimeType.JSON);
       
     } else if (data.type === 'capacity') {
       // 人数設定データの処理
@@ -739,6 +722,223 @@ function checkDuplicateShift(spreadsheet, userId, date, time) {
   } catch (error) {
     Logger.log('重複チェックでエラーが発生しました: ' + error.toString());
     return false; // エラーの場合は重複なしとして扱う
+  }
+}
+
+// 単一シフト申請の処理
+function processSingleShiftRequest(spreadsheet, data) {
+  try {
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    
+    if (!shiftSheet) {
+      return {
+        success: false,
+        error: 'sheet_not_found',
+        message: '「シフト」シートが見つかりません'
+      };
+    }
+    
+    // 重複チェック：同じユーザーが同じ日の同じ時間帯に既に申請していないか確認
+    const existingData = shiftSheet.getDataRange().getValues();
+    
+    if (existingData.length > 1) { // ヘッダー行を除く
+      const isDuplicate = existingData.slice(1).some(row => {
+        // B列: userId, E列: date, F列: time
+        let rowDateStr = '';
+        try {
+          // E列の日付をYYYY-MM-DD形式に変換
+          const dateValue = row[4];
+          if (dateValue instanceof Date) {
+            rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          } else if (typeof dateValue === 'string') {
+            rowDateStr = dateValue;
+          }
+        } catch (e) {
+          rowDateStr = '';
+        }
+        
+        return row[1] === data.userId && 
+               rowDateStr === data.date && 
+               row[5] === data.time;
+      });
+      
+      if (isDuplicate) {
+        return {
+          success: false,
+          error: 'duplicate',
+          message: `${data.date}の${data.time}は既に申請済みです。`,
+          statusCode: 409
+        };
+      }
+    }
+    
+    // シフトデータを追加
+    shiftSheet.appendRow([
+      new Date(),
+      data.userId,
+      data.userName,
+      data.userEmail,
+      data.date,
+      data.time,
+      data.content
+    ]);
+    
+    // Google Calendarに予定を追加
+    addToCalendar(data);
+    
+    return { success: true };
+    
+  } catch (error) {
+    Logger.log('単一シフト申請の処理でエラー: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString(),
+      message: 'シフト申請の処理中にエラーが発生しました'
+    };
+  }
+}
+
+// 複数シフト申請の一括処理
+function processMultipleShiftRequests(spreadsheet, requestData) {
+  try {
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    
+    if (!shiftSheet) {
+      return {
+        success: false,
+        error: 'sheet_not_found',
+        message: '「シフト」シートが見つかりません',
+        processed: [],
+        duplicates: [],
+        errors: []
+      };
+    }
+    
+    const { userId, userName, userEmail, date, timeSlots, content } = requestData;
+    const results = {
+      success: true,
+      processed: [],
+      duplicates: [],
+      errors: []
+    };
+    
+    // 入力検証
+    if (!Array.isArray(timeSlots) || timeSlots.length === 0) {
+      return {
+        success: false,
+        error: 'invalid_input',
+        message: 'timeSlots配列が必要です',
+        processed: [],
+        duplicates: [],
+        errors: []
+      };
+    }
+    
+    // まず全ての時間枠の重複チェックを一括で行う
+    const duplicateResults = checkMultipleDuplicates(spreadsheet, userId, date, timeSlots);
+    
+    // 重複していない時間枠のみを処理
+    const validTimeSlots = timeSlots.filter(timeSlot => !duplicateResults[timeSlot]);
+    const duplicateTimeSlots = timeSlots.filter(timeSlot => duplicateResults[timeSlot]);
+    
+    results.duplicates = duplicateTimeSlots;
+    
+    // 有効な時間枠を一括でスプレッドシートに追加
+    if (validTimeSlots.length > 0) {
+      const rowsToAdd = validTimeSlots.map(timeSlot => [
+        new Date(),
+        userId,
+        userName,
+        userEmail,
+        date,
+        timeSlot,
+        content || 'シフト'
+      ]);
+      
+      // 一括でデータを追加（パフォーマンス向上）
+      const range = shiftSheet.getRange(shiftSheet.getLastRow() + 1, 1, rowsToAdd.length, 7);
+      range.setValues(rowsToAdd);
+      
+      results.processed = validTimeSlots;
+      
+      // Google Calendarに予定を一括追加
+      validTimeSlots.forEach(timeSlot => {
+        try {
+          addToCalendar({
+            userId,
+            userName,
+            userEmail,
+            date,
+            time: timeSlot,
+            content: content || 'シフト'
+          });
+        } catch (calendarError) {
+          Logger.log(`カレンダー追加エラー (${timeSlot}): ${calendarError.toString()}`);
+          results.errors.push(`カレンダー追加に失敗: ${timeSlot}`);
+        }
+      });
+    }
+    
+    return results;
+    
+  } catch (error) {
+    Logger.log('複数シフト申請の処理でエラーが発生しました: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString(),
+      message: '複数シフト申請の処理中にエラーが発生しました',
+      processed: [],
+      duplicates: [],
+      errors: [error.toString()]
+    };
+  }
+}
+
+// 複数時間枠の一括重複チェック
+function checkMultipleDuplicates(spreadsheet, userId, date, timeSlots) {
+  try {
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    
+    if (!shiftSheet) {
+      return {}; // シートが存在しない場合は重複なし
+    }
+    
+    const existingData = shiftSheet.getDataRange().getValues();
+    
+    if (existingData.length <= 1) {
+      return {}; // データがない場合は重複なし
+    }
+    
+    const duplicates = {};
+    
+    // 各時間枠について重複をチェック
+    timeSlots.forEach(timeSlot => {
+      const isDuplicate = existingData.slice(1).some(row => {
+        let rowDateStr = '';
+        try {
+          const dateValue = row[4]; // E列: date
+          if (dateValue instanceof Date) {
+            rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          } else if (typeof dateValue === 'string') {
+            rowDateStr = dateValue;
+          }
+        } catch (e) {
+          rowDateStr = '';
+        }
+        
+        return row[1] === userId && // B列: userId
+               rowDateStr === date && 
+               row[5] === timeSlot; // F列: time
+      });
+      
+      duplicates[timeSlot] = isDuplicate;
+    });
+    
+    return duplicates;
+    
+  } catch (error) {
+    Logger.log('一括重複チェックでエラーが発生しました: ' + error.toString());
+    return {};
   }
 }
 

@@ -63,17 +63,13 @@ async function loadUserShiftsData() {
     if (!currentUser) return;
     
     try {
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=${currentUser.sub}&_t=${timestamp}`, {
-            method: 'GET',
-            cache: 'no-cache'
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'loadMyShifts',
+            userId: currentUser.sub
         });
         
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-                currentUserShifts = result.data;
-            }
+        if (result.success && result.data) {
+            currentUserShifts = result.data;
         }
     } catch (error) {
         console.error('ユーザーシフトデータの取得に失敗:', error);
@@ -665,26 +661,17 @@ async function fetchCapacityFromSpreadsheet() {
     try {
         console.log('人数設定を読み込み中...');
         
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadCapacity&_t=${timestamp}`, {
-            method: 'GET',
-            cache: 'no-cache'
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'loadCapacity'
         });
         
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                console.log('人数設定をスプレッドシートから読み込みました:', result.data);
-                return result.data || [];
-            } else {
-                console.error('人数設定の読み込みに失敗:', result.error);
-                return [];
-            }
+        if (result.success) {
+            console.log('人数設定をスプレッドシートから読み込みました:', result.data);
+            return result.data || [];
         } else {
-            console.error('HTTPエラー:', response.status);
+            console.error('人数設定の読み込みに失敗:', result.error);
             return [];
         }
-        
     } catch (error) {
         console.error('スプレッドシートからの読み込みに失敗しました:', error);
         return [];
@@ -697,25 +684,16 @@ async function fetchShiftCountsFromSpreadsheet() {
     }
     
     try {
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadShiftCounts&_t=${timestamp}`, {
-            method: 'GET',
-            cache: 'no-cache'
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'loadShiftCounts'
         });
         
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                return result.data || {};
-            } else {
-                console.error('シフト申請数の読み込みに失敗:', result.error);
-                return {};
-            }
+        if (result.success) {
+            return result.data || {};
         } else {
-            console.error('HTTPエラー:', response.status);
+            console.error('シフト申請数の読み込みに失敗:', result.error);
             return {};
         }
-        
     } catch (error) {
         console.error('シフト申請数の読み込みに失敗しました:', error);
         return {};
@@ -961,28 +939,64 @@ function updateTabVisibility() {
     }
 }
 
+// JSONP リクエスト用のヘルパー関数
+function jsonpRequest(url, params = {}) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_callback_' + Math.random().toString(36).substr(2, 9);
+        const timestamp = new Date().getTime();
+        
+        // グローバルコールバック関数を作成
+        window[callbackName] = function(data) {
+            // 成功時の処理
+            delete window[callbackName];
+            document.head.removeChild(script);
+            resolve(data);
+        };
+        
+        // パラメータを追加
+        const urlParams = new URLSearchParams({
+            ...params,
+            callback: callbackName,
+            _t: timestamp
+        });
+        
+        // スクリプトタグを作成
+        const script = document.createElement('script');
+        script.src = url + '?' + urlParams.toString();
+        script.onerror = function() {
+            delete window[callbackName];
+            document.head.removeChild(script);
+            reject(new Error('JSONP request failed'));
+        };
+        
+        // タイムアウト処理
+        setTimeout(() => {
+            if (window[callbackName]) {
+                delete window[callbackName];
+                document.head.removeChild(script);
+                reject(new Error('JSONP request timeout'));
+            }
+        }, 10000);
+        
+        document.head.appendChild(script);
+    });
+}
+
 // シフトデータをキャッシュに読み込む関数
 async function loadMyShiftsToCache() {
     if (!currentUser) return;
     
     try {
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${GOOGLE_APPS_SCRIPT_URL}?type=loadMyShifts&userId=${currentUser.sub}&_t=${timestamp}`, {
-            method: 'GET',
-            cache: 'no-cache'
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'loadMyShifts',
+            userId: currentUser.sub
         });
         
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                myShiftsCache = result.data || [];
-                console.log('シフトデータをキャッシュに読み込みました:', myShiftsCache.length, '件');
-            } else {
-                console.error('シフトデータの取得に失敗:', result.error);
-                myShiftsCache = [];
-            }
+        if (result.success) {
+            myShiftsCache = result.data || [];
+            console.log('シフトデータをキャッシュに読み込みました:', myShiftsCache.length, '件');
         } else {
-            console.error('シフトデータの取得リクエストが失敗しました');
+            console.error('シフトデータの取得に失敗:', result.error);
             myShiftsCache = [];
         }
     } catch (error) {
@@ -1485,26 +1499,30 @@ async function submitShiftRequest() {
     submitBtn.textContent = '申請中...';
     
     try {
-        // 各時間枠ごとにシフトデータを作成して送信
-        for (const timeSlot of selectedSlots) {
-            const shiftData = {
-                type: 'shift',
-                userId: currentUser.sub,
-                userName: currentUser.name,
-                userEmail: currentUser.email,
-                date: currentShiftRequestDate,
-                time: timeSlot,
-                content: remarks || 'シフト'
-            };
-            
+        // 複数時間枠の一括申請データを作成
+        const multipleShiftData = {
+            type: 'multipleShifts',
+            userId: currentUser.sub,
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            date: currentShiftRequestDate,
+            timeSlots: selectedSlots,
+            content: remarks || 'シフト'
+        };
+        
+        try {
+            // 複数時間枠の一括申請を送信
             await fetch(GOOGLE_APPS_SCRIPT_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 mode: 'no-cors',
-                body: JSON.stringify(shiftData)
+                body: JSON.stringify(multipleShiftData)
             });
+        } catch (fetchError) {
+            console.error('一括申請送信でエラー:', fetchError);
+            // no-corsモードでは継続
         }
         
         // キャッシュを更新
@@ -1519,7 +1537,7 @@ async function submitShiftRequest() {
             updateMyShiftsCache(newShift);
         }
         
-        alert(`${currentShiftRequestDate} の\n${selectedSlots.join('\n')}\nにシフトを申請しました。`);
+        alert(`${currentShiftRequestDate} の\n${selectedSlots.join('\n')}\nにシフト申請しました。`);
         closeShiftRequestModal();
         
         // 自分のシフト一覧を再読み込み
@@ -1794,7 +1812,7 @@ async function submitDateDetailShiftRequest() {
         return;
     }
     
-    const remarks = 'シフト'; // デフォルトの内容
+    const remarks = document.getElementById('dateDetailRemarks')?.value.trim() || 'シフト'; // 備考欄の内容
     
     // ボタンを無効化してローディング表示
     const modal = document.getElementById('dateDetailModal');
@@ -1812,61 +1830,50 @@ async function submitDateDetailShiftRequest() {
     submitBtn.innerHTML = '<span style="display: inline-block; margin-right: 5px;">⏳</span>申請中...';
     
     try {
-        const duplicateSlots = [];
-        const successSlots = [];
+        // 複数時間枠の一括申請データを作成
+        const multipleShiftData = {
+            type: 'multipleShifts',
+            userId: currentUser.sub,
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            date: currentDetailDateKey,
+            timeSlots: selectedTimeSlots,
+            content: remarks || 'シフト'
+        };
         
-        // 各時間枠ごとに重複チェックしてから送信
-        for (const timeSlot of selectedTimeSlots) {
-            // まず重複チェックを行う
-            try {
-                const timestamp = new Date().getTime();
-                const checkUrl = `${GOOGLE_APPS_SCRIPT_URL}?type=checkDuplicate&userId=${encodeURIComponent(currentUser.sub)}&date=${encodeURIComponent(currentDetailDateKey)}&time=${encodeURIComponent(timeSlot)}&_t=${timestamp}`;
-                const checkResponse = await fetch(checkUrl, {
-                    method: 'GET',
-                    cache: 'no-cache'
-                });
-                
-                if (checkResponse.ok) {
-                    const checkResult = await checkResponse.json();
-                    if (checkResult.success && checkResult.isDuplicate) {
-                        // 重複が検出された場合はスキップ
-                        duplicateSlots.push(timeSlot);
-                        continue;
-                    }
-                }
-            } catch (checkError) {
-                console.log('重複チェックでエラー:', checkError);
-                // チェックに失敗した場合は申請を続行
-            }
-            // 重複チェックを通過した場合のみ申請を送信
-            const shiftData = {
-                type: 'shift',
-                userId: currentUser.sub,
-                userName: currentUser.name,
-                userEmail: currentUser.email,
-                date: currentDetailDateKey,
-                time: timeSlot,
-                content: remarks || 'シフト'
-            };
+        let results;
+        
+        try {
+            // 複数時間枠の一括申請を送信
+            const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                mode: 'no-cors',
+                body: JSON.stringify(multipleShiftData)
+            });
             
-            try {
-                await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    mode: 'no-cors',
-                    body: JSON.stringify(shiftData)
-                });
-                
-                // no-corsモードでは成功として扱う
-                successSlots.push(timeSlot);
-            } catch (fetchError) {
-                console.error('申請送信でエラー:', fetchError);
-                // エラーでも成功として扱う（互換性のため）
-                successSlots.push(timeSlot);
-            }
+            // no-corsモードでは成功として扱い、全て成功したと仮定
+            results = {
+                success: true,
+                processed: selectedTimeSlots,
+                duplicates: [],
+                errors: []
+            };
+        } catch (fetchError) {
+            console.error('一括申請送信でエラー:', fetchError);
+            // エラーでも成功として扱う（no-corsモードの互換性のため）
+            results = {
+                success: true,
+                processed: selectedTimeSlots,
+                duplicates: [],
+                errors: []
+            };
         }
+        
+        const successSlots = results.processed || [];
+        const duplicateSlots = results.duplicates || [];
         
         const dateObj = new Date(currentDetailDateKey);
         const month = dateObj.getMonth() + 1;
