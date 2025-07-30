@@ -609,7 +609,7 @@ function expandTimeRange(timeRange) {
     return timeSlots;
 }
 
-async function deleteShiftFromModal(userId, userName, userEmail, dateKey, timeSlot) {
+async function deleteShiftFromModal(buttonElement, userId, userName, userEmail, dateKey, timeSlot) {
     if (!isAdminUser) {
         alert('管理者権限が必要です。');
         return;
@@ -625,6 +625,12 @@ async function deleteShiftFromModal(userId, userName, userEmail, dateKey, timeSl
     if (!confirm(`${userName}さんの${dateKey} ${displayTimeRange}のシフトを削除しますか？`)) {
         return;
     }
+    
+    // 対象の削除ボタンのみ無効化
+    const originalText = buttonElement.textContent;
+    buttonElement.disabled = true;
+    buttonElement.textContent = '削除中...';
+    buttonElement.style.opacity = '0.6';
     
     try {
         const deleteData = {
@@ -656,12 +662,23 @@ async function deleteShiftFromModal(userId, userName, userEmail, dateKey, timeSl
             modal.style.display = 'none';
         }
         
+        // シフトデータを再読み込み
+        await Promise.all([
+            loadShiftList(),          // 管理者用シフト一覧を更新
+            loadMyShifts()            // 自分のシフト一覧を更新
+        ]);
+        
         // カレンダーを再読み込み
         generateCalendar('shiftCalendarContainer');
         
     } catch (error) {
         console.error('シフト削除でエラー:', error);
         alert('シフトの削除に失敗しました。再度お試しください。');
+        
+        // エラー時は対象のボタンのみ元に戻す
+        buttonElement.disabled = false;
+        buttonElement.textContent = originalText;
+        buttonElement.style.opacity = '1';
     }
 }
 
@@ -741,7 +758,7 @@ function openShiftDetailModal(dateKey) {
                             ${shift.content && shift.content !== 'シフト' ? `<div class="shift-person-note">${shift.content}</div>` : ''}
                         </div>
                         ${isAdminUser ? `
-                            <button class="shift-delete-btn" onclick="deleteShiftFromModal('${shift.userId}', '${shift.userName || shift.name || '名前未設定'}', '${shift.userEmail || shift.email || ''}', '${dateKey}', '${timeSlot}')">
+                            <button class="shift-delete-btn" onclick="deleteShiftFromModal(this, '${shift.userId}', '${shift.userName || shift.name || '名前未設定'}', '${shift.userEmail || shift.email || ''}', '${dateKey}', '${timeSlot}')">
                                 削除
                             </button>
                         ` : ''}
