@@ -58,9 +58,13 @@ async function showProfile(profileData) {
         // キャッシュを使って初期表示
         displayShiftList();
     } else {
-        // 一般ユーザーの場合、自分のシフトデータの初期ロード
-        await loadUserShiftsData();
-        loadMyShifts();
+        // 一般ユーザーの場合、必要なデータを初回に読み込み
+        await Promise.all([
+            loadUserShiftsData(),     // 自分のシフトデータ
+            loadCapacityToCache()     // 人数設定データ（シフト申請用）
+        ]);
+        // キャッシュを使って初期表示
+        displayMyShifts(document.getElementById('myShiftsCalendarContainer'), myShiftsCache);
     }
 }
 
@@ -722,7 +726,9 @@ async function deleteShiftFromModal(buttonElement, userId, userName, userEmail, 
             await loadAllShiftsToCache();
             displayShiftList();
         } else {
-            await loadMyShifts();
+            // 一般ユーザーの場合もキャッシュを更新
+            myShiftsCache = null;
+            await loadMyShiftsToCache();
         }
         
         // カレンダーを再読み込み
@@ -1418,7 +1424,31 @@ async function loadShiftRequestForm() {
     const container = document.getElementById('shiftRequestContent');
     if (!container) return;
     
-    // ローディング表示
+    // キャッシュがある場合は即座に表示
+    if (capacityCache !== null) {
+        console.log('キャッシュからシフト申請フォームを表示');
+        
+        // シフト申請数を取得（これは常に最新を取得）
+        const shiftCounts = await fetchShiftCountsFromSpreadsheet();
+        
+        // グローバル変数に保存
+        currentShiftCounts = shiftCounts;
+        window.currentCapacityData = capacityCache;
+        
+        // コンテナをクリアしてカレンダーを生成
+        container.innerHTML = '<div id="shiftRequestCalendarContainer" class="calendar-container"></div>';
+        
+        // カレンダーを生成（シフト申請モード）
+        generateCalendar('shiftRequestCalendarContainer', false, true);
+        
+        // 人数データとシフト申請数をカレンダーに反映
+        if (capacityCache.length > 0) {
+            displayCapacityWithCountsOnCalendar(capacityCache, shiftCounts);
+        }
+        return;
+    }
+    
+    // キャッシュがない場合のみローディング表示と読み込み
     container.innerHTML = `
         <div class="loading-container">
             <div class="loading-spinner"></div>
@@ -1428,14 +1458,12 @@ async function loadShiftRequestForm() {
     
     try {
         // 人数設定データとシフト申請数を並行して読み込み
-        const [capacityData, shiftCounts] = await Promise.all([
-            fetchCapacityFromSpreadsheet(),
-            fetchShiftCountsFromSpreadsheet()
-        ]);
+        await loadCapacityToCache();
+        const shiftCounts = await fetchShiftCountsFromSpreadsheet();
         
         // グローバル変数に保存
         currentShiftCounts = shiftCounts;
-        window.currentCapacityData = capacityData;
+        window.currentCapacityData = capacityCache;
         
         // コンテナをクリアしてカレンダーを生成
         container.innerHTML = '<div id="shiftRequestCalendarContainer" class="calendar-container"></div>';
@@ -1444,8 +1472,8 @@ async function loadShiftRequestForm() {
         generateCalendar('shiftRequestCalendarContainer', false, true);
         
         // 人数データとシフト申請数をカレンダーに反映
-        if (capacityData && capacityData.length > 0) {
-            displayCapacityWithCountsOnCalendar(capacityData, shiftCounts);
+        if (capacityCache && capacityCache.length > 0) {
+            displayCapacityWithCountsOnCalendar(capacityCache, shiftCounts);
         }
         
     } catch (error) {
