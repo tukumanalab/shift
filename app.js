@@ -4,7 +4,9 @@ const AUTHORIZED_EMAILS = config.AUTHORIZED_EMAILS.split(',').map(email => email
 
 let currentUser = null;
 let isAdminUser = false;
-let myShiftsCache = null; // シフトデータのキャッシュ
+let myShiftsCache = null; // 自分のシフトデータのキャッシュ
+let allShiftsCache = null; // 全員のシフトデータのキャッシュ（管理者用）
+let capacityCache = null; // 人数設定データのキャッシュ（管理者用）
 
 function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
@@ -46,14 +48,18 @@ async function showProfile(profileData) {
     // タブの表示制御
     updateTabVisibility();
     
-    // ユーザーシフトデータの初期ロード
-    await loadUserShiftsData();
-    
-    // 初期ロード - シフトデータをキャッシュに読み込み
+    // 初回データロード
     if (isAdminUser) {
-        loadShiftList();
+        // 管理者の場合、全データを初回に読み込み
+        await Promise.all([
+            loadAllShiftsToCache(),  // 全員のシフトデータ
+            loadCapacityToCache()    // 人数設定データ
+        ]);
+        // キャッシュを使って初期表示
+        displayShiftList();
     } else {
-        await loadMyShiftsToCache();
+        // 一般ユーザーの場合、自分のシフトデータの初期ロード
+        await loadUserShiftsData();
         loadMyShifts();
     }
 }
@@ -157,7 +163,71 @@ function setupTabSwitching() {
     });
 }
 
+// 管理者用：全員のシフトデータをキャッシュに読み込む
+async function loadAllShiftsToCache() {
+    console.log('管理者モード: 全員のシフトデータをキャッシュに読み込み中...');
+    
+    try {
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'loadMyShifts',
+            userId: 'admin'
+        });
+        
+        if (result.success) {
+            allShiftsCache = result.data || [];
+            window.allShiftsData = allShiftsCache; // 既存コードとの互換性のため
+            console.log('全員のシフトデータをキャッシュに保存しました:', allShiftsCache.length, '件');
+        } else {
+            console.error('シフトデータの取得に失敗:', result.error);
+        }
+    } catch (error) {
+        console.error('シフトデータの読み込み中にエラーが発生:', error);
+    }
+}
+
+// 管理者用：人数設定データをキャッシュに読み込む
+async function loadCapacityToCache() {
+    console.log('管理者モード: 人数設定データをキャッシュに読み込み中...');
+    
+    try {
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'loadCapacity'
+        });
+        
+        if (result.success) {
+            capacityCache = result.data || [];
+            window.capacityData = capacityCache; // 既存コードとの互換性のため
+            console.log('人数設定データをキャッシュに保存しました:', capacityCache.length, '件');
+        } else {
+            console.error('人数設定データの取得に失敗:', result.error);
+        }
+    } catch (error) {
+        console.error('人数設定データの読み込み中にエラーが発生:', error);
+    }
+}
+
+// キャッシュから管理者用シフト一覧を表示
+function displayShiftList() {
+    const container = document.getElementById('shiftCalendarContainer');
+    if (!container) return;
+    
+    if (allShiftsCache && allShiftsCache.length > 0) {
+        window.allShiftsData = allShiftsCache;
+        generateCalendar('shiftCalendarContainer');
+    } else {
+        container.innerHTML = '<p>シフトデータがありません。</p>';
+    }
+}
+
 async function loadShiftList() {
+    // キャッシュがある場合は、キャッシュから表示
+    if (allShiftsCache !== null) {
+        console.log('キャッシュから全員のシフト一覧を表示');
+        displayShiftList();
+        return;
+    }
+    
+    // キャッシュがない場合は、データを読み込む
     console.log('管理者モード: 全員のシフト一覧を読み込み中...');
     
     const container = document.getElementById('shiftCalendarContainer');
@@ -171,25 +241,8 @@ async function loadShiftList() {
         </div>
     `;
     
-    try {
-        // 管理者として全員のシフトデータを取得
-        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
-            type: 'loadMyShifts',
-            userId: 'admin'
-        });
-        
-        if (result.success) {
-            window.allShiftsData = result.data || [];
-            console.log('全員のシフトデータを読み込みました:', window.allShiftsData.length, '件');
-            generateCalendar('shiftCalendarContainer');
-        } else {
-            container.innerHTML = '<p>シフトデータの読み込みに失敗しました。</p>';
-            console.error('シフトデータの取得に失敗:', result.error);
-        }
-    } catch (error) {
-        container.innerHTML = '<p>シフトデータの読み込み中にエラーが発生しました。</p>';
-        console.error('シフトデータの読み込み中にエラーが発生:', error);
-    }
+    await loadAllShiftsToCache();
+    displayShiftList();
 }
 
 function generateCalendar(containerId, isCapacityMode = false, isRequestMode = false) {
@@ -662,11 +715,15 @@ async function deleteShiftFromModal(buttonElement, userId, userName, userEmail, 
             modal.style.display = 'none';
         }
         
-        // シフトデータを再読み込み
-        await Promise.all([
-            loadShiftList(),          // 管理者用シフト一覧を更新
-            loadMyShifts()            // 自分のシフト一覧を更新
-        ]);
+        // データを再読み込みしてキャッシュを更新
+        if (isAdminUser) {
+            // キャッシュをクリアして再読み込み
+            allShiftsCache = null;
+            await loadAllShiftsToCache();
+            displayShiftList();
+        } else {
+            await loadMyShifts();
+        }
         
         // カレンダーを再読み込み
         generateCalendar('shiftCalendarContainer');
@@ -792,19 +849,29 @@ async function loadCapacitySettings() {
     const loadingContainer = document.getElementById('capacityLoadingContainer');
     const calendarContainer = document.getElementById('capacityCalendarContainer');
     
+    // キャッシュがある場合は、ローディングを表示せずに即座に表示
+    if (capacityCache !== null) {
+        console.log('キャッシュから人数設定を表示');
+        generateCalendar('capacityCalendarContainer', true);
+        if (capacityCache.length > 0) {
+            applyCapacityData(capacityCache);
+        }
+        return;
+    }
+    
     loadingContainer.style.display = 'flex';
     calendarContainer.style.display = 'none';
     
     try {
-        // スプレッドシートから人数設定を読み込み
-        const capacityData = await fetchCapacityFromSpreadsheet();
+        // キャッシュがない場合のみ読み込み
+        await loadCapacityToCache();
         
         // カレンダーを生成
         generateCalendar('capacityCalendarContainer', true);
         
         // 読み込んだデータを入力フィールドに反映
-        if (capacityData && capacityData.length > 0) {
-            applyCapacityData(capacityData);
+        if (capacityCache && capacityCache.length > 0) {
+            applyCapacityData(capacityCache);
         }
         
     } catch (error) {
@@ -1060,6 +1127,12 @@ async function saveCapacityToSpreadsheet(capacityData) {
         });
         
         console.log('人数設定をスプレッドシートに保存しました');
+        
+        // キャッシュをクリアして再読み込み
+        if (isAdminUser) {
+            capacityCache = null;
+            await loadCapacityToCache();
+        }
     } catch (error) {
         console.error('スプレッドシートへの保存に失敗しました:', error);
         throw error;
