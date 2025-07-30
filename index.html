@@ -273,9 +273,31 @@
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 60px;
+            display: flex;
+            align-items: center;
+            gap: 2px;
         }
         .shift-person:hover {
             background-color: #bbdefb;
+        }
+        .delete-shift-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            font-size: 10px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 2px;
+            flex-shrink: 0;
+        }
+        .delete-shift-btn:hover {
+            background-color: #c82333;
         }
         
         /* シフト詳細ダイアログのスタイル */

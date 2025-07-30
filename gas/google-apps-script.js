@@ -114,6 +114,14 @@ function doPost(e) {
         .createTextOutput(JSON.stringify(results))
         .setMimeType(ContentService.MimeType.JSON);
       
+    } else if (data.type === 'deleteShift') {
+      // シフト削除処理（管理者専用）
+      const result = deleteShiftRequest(spreadsheet, data);
+      
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+      
     } else if (data.type === 'capacity') {
       // 人数設定データの処理
       saveCapacitySettings(spreadsheet, data.data);
@@ -942,6 +950,148 @@ function checkMultipleDuplicates(spreadsheet, userId, date, timeSlots) {
   }
 }
 
+// シフト削除処理（管理者専用）
+function deleteShiftRequest(spreadsheet, data) {
+  try {
+    const shiftSheet = spreadsheet.getSheetByName('シフト');
+    
+    if (!shiftSheet) {
+      return {
+        success: false,
+        error: 'sheet_not_found',
+        message: '「シフト」シートが見つかりません'
+      };
+    }
+    
+    const { userId, userName, userEmail, date, time, timeSlots, adminUserId } = data;
+    
+    // 管理者権限チェック（必要に応じて実装）
+    if (!adminUserId) {
+      return {
+        success: false,
+        error: 'unauthorized',
+        message: '管理者権限が必要です'
+      };
+    }
+    
+    // 削除対象の時間スロット配列を取得（timeSlots優先、なければtimeを配列化）
+    const targetTimeSlots = timeSlots || [time];
+    
+    const allData = shiftSheet.getDataRange().getValues();
+    const deletedRows = [];
+    
+    // 各時間スロットについて削除対象を検索
+    for (const timeSlot of targetTimeSlots) {
+      for (let i = 1; i < allData.length; i++) {
+        const row = allData[i];
+        let rowDateStr = '';
+        
+        try {
+          const dateValue = row[4]; // E列: date
+          if (dateValue instanceof Date) {
+            rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          } else if (typeof dateValue === 'string') {
+            rowDateStr = dateValue;
+          }
+        } catch (e) {
+          rowDateStr = '';
+        }
+        
+        // 条件に一致するシフトを検索
+        if (row[1] === userId &&     // B列: userId
+            row[2] === userName &&   // C列: userName  
+            row[3] === userEmail &&  // D列: userEmail
+            rowDateStr === date &&   // E列: date
+            row[5] === timeSlot) {   // F列: time
+          deletedRows.push({ index: i + 1, timeSlot: timeSlot }); // スプレッドシートの行番号（1ベース）
+          break;
+        }
+      }
+    }
+    
+    if (deletedRows.length === 0) {
+      return {
+        success: false,
+        error: 'not_found',
+        message: '該当するシフトが見つかりません'
+      };
+    }
+    
+    // 行番号を降順でソートして削除（後ろから削除することで行番号のずれを防ぐ）
+    deletedRows.sort((a, b) => b.index - a.index);
+    
+    // 行を削除
+    for (const deleteInfo of deletedRows) {
+      shiftSheet.deleteRow(deleteInfo.index);
+    }
+    
+    // Google Calendarからも削除（各時間スロットについて）
+    for (const deleteInfo of deletedRows) {
+      try {
+        deleteFromCalendar({
+          userId,
+          userName,
+          userEmail,
+          date,
+          time: deleteInfo.timeSlot
+        });
+      } catch (calendarError) {
+        Logger.log('カレンダーからの削除に失敗: ' + calendarError.toString());
+        // カレンダー削除の失敗は警告のみ
+      }
+    }
+    
+    return {
+      success: true,
+      message: `${deletedRows.length}件のシフトを削除しました`,
+      deletedCount: deletedRows.length
+    };
+    
+  } catch (error) {
+    Logger.log('シフト削除処理でエラー: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString(),
+      message: 'シフト削除中にエラーが発生しました'
+    };
+  }
+}
+
+// Google Calendarからシフトを削除する関数
+function deleteFromCalendar(shiftData) {
+  try {
+    const calendar = CalendarApp.getCalendarById(getCalendarId());
+    
+    if (!calendar) {
+      throw new Error('カレンダーが見つかりません: ' + getCalendarId());
+    }
+    
+    // 該当する日付のイベントを検索
+    const shiftDate = new Date(shiftData.date);
+    const startDate = new Date(shiftDate);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(shiftDate);
+    endDate.setHours(23, 59, 59, 999);
+    
+    const events = calendar.getEvents(startDate, endDate);
+    
+    // 条件に一致するイベントを削除
+    const targetTitle = `${shiftData.userName} - `;
+    events.forEach(event => {
+      if (event.getTitle().startsWith(targetTitle) && 
+          event.getDescription().includes(shiftData.userEmail) &&
+          event.getDescription().includes(shiftData.time)) {
+        event.deleteEvent();
+        Logger.log('カレンダーからイベントを削除しました: ' + event.getTitle());
+      }
+    });
+    
+  } catch (error) {
+    Logger.log('カレンダーからの削除に失敗しました: ' + error.toString());
+    throw error;
+  }
+}
+
 // デバッグ用：受信したデータを「debug」シートに記録
 function logToDebugSheet(spreadsheet, data) {
   try {
@@ -983,3 +1133,4 @@ function logToDebugSheet(spreadsheet, data) {
     Logger.log('デバッグシートへの記録に失敗しました: ' + error.toString());
   }
 }
+

@@ -517,6 +517,154 @@ function displayShiftsForDate(container, dateKey) {
     });
 }
 
+// シフト削除機能（管理者専用）
+async function deleteShift(shift, dateKey, timeSlot) {
+    if (!isAdminUser) {
+        alert('管理者権限が必要です。');
+        return;
+    }
+    
+    const userName = shift.userName || shift.name || '名前未設定';
+    const userEmail = shift.userEmail || shift.email || '';
+    
+    if (!confirm(`${userName}さんの${dateKey} ${timeSlot}のシフトを削除しますか？`)) {
+        return;
+    }
+    
+    try {
+        const deleteData = {
+            type: 'deleteShift',
+            userId: shift.userId,
+            userName: userName,
+            userEmail: userEmail,
+            date: dateKey,
+            time: timeSlot,
+            adminUserId: currentUser.sub
+        };
+        
+        // シフト削除リクエストを送信
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            mode: 'no-cors',
+            body: JSON.stringify(deleteData)
+        });
+        
+        // no-corsモードでは成功として扱う
+        alert(`${userName}さんの${dateKey} ${timeSlot}のシフトを削除しました。`);
+        
+        // シフト一覧を再読み込み
+        await loadShiftList();
+        
+    } catch (error) {
+        console.error('シフト削除でエラー:', error);
+        alert('シフトの削除に失敗しました。再度お試しください。');
+    }
+}
+
+// 時間範囲を30分単位のスロットに分解する関数
+function expandTimeRange(timeRange) {
+    console.log('expandTimeRange input:', timeRange);
+    
+    // 時間範囲を解析
+    const rangeParts = timeRange.split('-');
+    if (rangeParts.length !== 2) {
+        // 単一時間の場合はそのまま返す
+        console.log('単一時間:', timeRange);
+        return [timeRange.trim()];
+    }
+    
+    const startTime = rangeParts[0].trim();
+    const endTime = rangeParts[1].trim();
+    
+    // 時間を分に変換
+    function timeToMinutes(timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+    
+    // 分を時間に変換
+    function minutesToTime(minutes) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+    
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    
+    console.log('startMinutes:', startMinutes, 'endMinutes:', endMinutes);
+    
+    // 30分単位でスロットを生成  
+    const timeSlots = [];
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += 30) {
+        const slotStart = minutesToTime(minutes);
+        const slotEnd = minutesToTime(minutes + 30);
+        timeSlots.push(`${slotStart}-${slotEnd}`);
+    }
+    
+    console.log('expandTimeRange output:', timeSlots);
+    return timeSlots;
+}
+
+async function deleteShiftFromModal(userId, userName, userEmail, dateKey, timeSlot) {
+    if (!isAdminUser) {
+        alert('管理者権限が必要です。');
+        return;
+    }
+    
+    // 時間範囲を30分単位に分解
+    const timeSlots = expandTimeRange(timeSlot);
+    
+    const displayTimeRange = timeSlots.length > 1 ? 
+        `${timeSlots[0].split('-')[0]}-${timeSlots[timeSlots.length-1].split('-')[1]}` : 
+        timeSlot;
+    
+    if (!confirm(`${userName}さんの${dateKey} ${displayTimeRange}のシフトを削除しますか？`)) {
+        return;
+    }
+    
+    try {
+        const deleteData = {
+            type: 'deleteShift',
+            userId: userId,
+            userName: userName,
+            userEmail: userEmail,
+            date: dateKey,
+            timeSlots: timeSlots, // 複数時間枠を配列で送信
+            adminUserId: currentUser.sub
+        };
+        
+        // シフト削除リクエストを送信
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            mode: 'no-cors',
+            body: JSON.stringify(deleteData)
+        });
+        
+        // no-corsモードでは成功として扱う
+        alert(`${userName}さんの${dateKey} ${displayTimeRange}のシフトを削除しました。`);
+        
+        // モーダルを閉じる
+        const modal = document.getElementById('shiftDetailModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        
+        // カレンダーを再読み込み
+        generateCalendar('shiftCalendarContainer');
+        
+    } catch (error) {
+        console.error('シフト削除でエラー:', error);
+        alert('シフトの削除に失敗しました。再度お試しください。');
+    }
+}
+
 function handleCalendarCellClick(event) {
     const cell = event.currentTarget;
     const date = cell.getAttribute('data-date');
@@ -587,9 +735,16 @@ function openShiftDetailModal(dateKey) {
             timeSlotGroups[timeSlot].forEach(shift => {
                 html += `
                     <div class="shift-detail-person">
-                        <div class="shift-person-name">${shift.userName || shift.name || '名前未設定'}</div>
-                        <div class="shift-person-email">${shift.userEmail || shift.email || ''}</div>
-                        ${shift.content && shift.content !== 'シフト' ? `<div class="shift-person-note">${shift.content}</div>` : ''}
+                        <div class="shift-person-info">
+                            <div class="shift-person-name">${shift.userName || shift.name || '名前未設定'}</div>
+                            <div class="shift-person-email">${shift.userEmail || shift.email || ''}</div>
+                            ${shift.content && shift.content !== 'シフト' ? `<div class="shift-person-note">${shift.content}</div>` : ''}
+                        </div>
+                        ${isAdminUser ? `
+                            <button class="shift-delete-btn" onclick="deleteShiftFromModal('${shift.userId}', '${shift.userName || shift.name || '名前未設定'}', '${shift.userEmail || shift.email || ''}', '${dateKey}', '${timeSlot}')">
+                                削除
+                            </button>
+                        ` : ''}
                     </div>
                 `;
             });
