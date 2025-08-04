@@ -1478,6 +1478,7 @@ function displayMyShifts(container, shiftsData) {
                         <th>時間帯</th>
                         <th>備考</th>
                         <th>申請日</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1500,8 +1501,19 @@ function displayMyShifts(container, shiftsData) {
         });
         
         // 過去のシフトかどうか判定
-        const isPastShift = shiftDate < new Date();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isPastShift = shiftDate < today;
         const rowClass = isPastShift ? 'past-shift' : 'future-shift';
+        
+        // 削除ボタンの表示（未来のシフトのみ）
+        const deleteButtonHTML = isPastShift ? 
+            '<td class="shift-actions">-</td>' : 
+            `<td class="shift-actions">
+                <button class="my-shift-delete-btn" onclick="deleteMyShift('${shift.shiftDate}', '${shift.timeSlot}', this)">
+                    削除
+                </button>
+            </td>`;
         
         tableHTML += `
             <tr class="${rowClass}">
@@ -1509,6 +1521,7 @@ function displayMyShifts(container, shiftsData) {
                 <td class="shift-time">${shift.timeSlot}</td>
                 <td class="shift-content">${shift.content || '-'}</td>
                 <td class="shift-reg-date">${formattedRegDate}</td>
+                ${deleteButtonHTML}
             </tr>
         `;
     });
@@ -1520,6 +1533,64 @@ function displayMyShifts(container, shiftsData) {
     `;
     
     container.innerHTML = tableHTML;
+}
+
+// 自分のシフト削除機能
+async function deleteMyShift(shiftDate, timeSlot, buttonElement) {
+    if (!currentUser) {
+        alert('ログインしてください。');
+        return;
+    }
+    
+    if (!confirm(`${shiftDate} ${timeSlot}のシフトを削除しますか？`)) {
+        return;
+    }
+    
+    // ボタンの状態を更新
+    const originalText = buttonElement.textContent;
+    buttonElement.disabled = true;
+    buttonElement.textContent = '削除中...';
+    buttonElement.style.opacity = '0.6';
+    
+    try {
+        // 時間範囲を30分単位に分解
+        const expandedTimeSlots = expandTimeRange(timeSlot);
+        
+        const deleteData = {
+            type: 'deleteShift',
+            userId: currentUser.sub,
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            date: shiftDate,
+            timeSlots: expandedTimeSlots // 複数の時間枠を送信
+        };
+        
+        // シフト削除リクエストを送信
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            mode: 'no-cors',
+            body: JSON.stringify(deleteData)
+        });
+        
+        // no-corsモードでは成功として扱う
+        alert(`${shiftDate} ${timeSlot}のシフトを削除しました。`);
+        
+        // 自分のシフト一覧を再読み込み
+        await loadMyShiftsToCache();
+        loadMyShifts();
+        
+    } catch (error) {
+        console.error('シフト削除でエラー:', error);
+        alert('シフトの削除に失敗しました。再度お試しください。');
+    } finally {
+        // ボタンの状態を復元
+        buttonElement.disabled = false;
+        buttonElement.textContent = originalText;
+        buttonElement.style.opacity = '1';
+    }
 }
 
 async function loadShiftRequestForm() {

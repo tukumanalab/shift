@@ -1065,12 +1065,12 @@ function deleteShiftRequest(spreadsheet, data) {
     
     const { userId, userName, userEmail, date, time, timeSlots, adminUserId } = data;
     
-    // 管理者権限チェック（必要に応じて実装）
-    if (!adminUserId) {
+    // 権限チェック: 管理者または本人のシフトのみ削除可能
+    if (!adminUserId && !userId) {
       return {
         success: false,
         error: 'unauthorized',
-        message: '管理者権限が必要です'
+        message: '権限がありません'
       };
     }
     
