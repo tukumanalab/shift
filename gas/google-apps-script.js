@@ -137,6 +137,10 @@ function doPost(e) {
       // 全シフトデータの同期
       syncAllShiftsToCalendar();
       
+    } else if (data.type === 'deleteAllFromCalendar') {
+      // カレンダーからすべてのシフトを削除
+      deleteAllShiftsFromCalendar();
+      
     } else if (data.type === 'saveUser') {
       // ユーザーログインデータの処理
       saveUserData(spreadsheet, data);
@@ -164,53 +168,60 @@ function addToCalendar(shiftData) {
       throw new Error('カレンダーが見つかりません: ' + getCalendarId());
     }
     
-    // 日付と時間の解析
-    const shiftDate = new Date(shiftData.date);
-    const timeSlot = parseTimeSlot(shiftData.time);
+    Logger.log(`シフトデータを処理中: ${JSON.stringify(shiftData)}`);
     
-    // 開始時刻と終了時刻を設定
-    const startTime = new Date(shiftDate);
-    startTime.setHours(timeSlot.startHour, timeSlot.startMinute, 0, 0);
+    // 日付文字列の処理を改善
+    let shiftDate;
+    if (shiftData.date instanceof Date) {
+      shiftDate = new Date(shiftData.date);
+    } else if (typeof shiftData.date === 'string') {
+      // YYYY-MM-DD形式の文字列を想定
+      shiftDate = new Date(shiftData.date + 'T00:00:00');
+    } else {
+      throw new Error('無効な日付形式: ' + shiftData.date);
+    }
     
-    const endTime = new Date(shiftDate);
-    endTime.setHours(timeSlot.endHour, timeSlot.endMinute, 0, 0);
+    Logger.log(`解析された日付: ${shiftDate}`);
     
-    // 予定のタイトルと説明
-    const title = `${shiftData.userName} - ${shiftData.content}`;
-    const description = `担当者: ${shiftData.userName}\n` +
-                       `メール: ${shiftData.userEmail}\n` +
-                       `時間帯: ${shiftData.time}\n` +
-                       `内容: ${shiftData.content}`;
+    // 時間情報を解析（例: "13:00-13:30"）
+    const [startTime, endTime] = shiftData.time.split('-');
+    const [startHour, startMinute] = startTime.trim().split(':').map(Number);
+    const [endHour, endMinute] = endTime.trim().split(':').map(Number);
     
-    // カレンダーに予定を追加
-    calendar.createEvent(title, startTime, endTime, {
+    Logger.log(`時間情報: ${startHour}:${startMinute} - ${endHour}:${endMinute}`);
+    
+    // 開始時刻と終了時刻のDateオブジェクトを作成
+    const startDateTime = new Date(shiftDate);
+    startDateTime.setHours(startHour, startMinute, 0, 0);
+    
+    const endDateTime = new Date(shiftDate);
+    endDateTime.setHours(endHour, endMinute, 0, 0);
+    
+    Logger.log(`設定された開始時刻: ${startDateTime}`);
+    Logger.log(`設定された終了時刻: ${endDateTime}`);
+    
+    // イベントのタイトルと詳細を作成
+    const title = `${shiftData.userName} - つくまなバイト2`;
+    const description = `担当者: ${shiftData.userName}
+メール: ${shiftData.userEmail}
+時間: ${shiftData.time}
+内容: ${shiftData.content}`;
+    
+    // カレンダーにイベントを追加
+    const event = calendar.createEvent(title, startDateTime, endDateTime, {
       description: description,
-      location: '',
-      guests: shiftData.userEmail,
-      sendInvites: false
+      location: 'つくまなラボ'  // 必要に応じて場所を設定
     });
     
-    Logger.log('カレンダーに予定を追加しました: ' + title);
+    Logger.log(`カレンダーイベントを作成しました: ${title} (${startDateTime} - ${endDateTime})`);
     
   } catch (error) {
-    Logger.log('カレンダーへの追加に失敗しました: ' + error.toString());
+    Logger.log(`カレンダーへの追加に失敗しました: ${error.toString()}`);
+    Logger.log(`シフトデータ: ${JSON.stringify(shiftData)}`);
     throw error;
   }
 }
 
-function parseTimeSlot(timeSlot) {
-  const timeSlots = {
-    '早朝 (6:00-9:00)': { startHour: 6, startMinute: 0, endHour: 9, endMinute: 0 },
-    '午前 (9:00-12:00)': { startHour: 9, startMinute: 0, endHour: 12, endMinute: 0 },
-    '午後 (12:00-15:00)': { startHour: 12, startMinute: 0, endHour: 15, endMinute: 0 },
-    '夕方 (15:00-18:00)': { startHour: 15, startMinute: 0, endHour: 18, endMinute: 0 },
-    '夜間 (18:00-21:00)': { startHour: 18, startMinute: 0, endHour: 21, endMinute: 0 },
-    '深夜 (21:00-24:00)': { startHour: 21, startMinute: 0, endHour: 24, endMinute: 0 },
-    '終日 (9:00-18:00)': { startHour: 9, startMinute: 0, endHour: 18, endMinute: 0 }
-  };
-  
-  return timeSlots[timeSlot] || { startHour: 9, startMinute: 0, endHour: 18, endMinute: 0 };
-}
 
 function loadCapacitySettings(spreadsheet) {
   try {
@@ -626,9 +637,10 @@ function syncAllShiftsToCalendar() {
     
     // シフトデータを取得（ヘッダー行を除く）
     const shiftData = shiftSheet.getDataRange().getValues().slice(1);
-    let syncCount = 0;
     
-    // 各シフトをカレンダーに追加
+    // ユーザーと日付ごとにシフトをグループ化
+    const groupedShifts = {};
+    
     shiftData.forEach(row => {
       if (row.length >= 7) {
         const shiftInfo = {
@@ -642,17 +654,83 @@ function syncAllShiftsToCalendar() {
         
         // 日付が有効かチェック
         const shiftDate = new Date(shiftInfo.date);
-        if (shiftDate >= now) { // 今日以降の予定のみ同期
-          addToCalendar(shiftInfo);
-          syncCount++;
+        if (shiftDate >= now) { // 今日以降の予定のみ
+          const key = `${shiftInfo.userId}_${shiftInfo.date}`;
+          if (!groupedShifts[key]) {
+            groupedShifts[key] = {
+              userId: shiftInfo.userId,
+              userName: shiftInfo.userName,
+              userEmail: shiftInfo.userEmail,
+              date: shiftInfo.date,
+              timeSlots: [],
+              content: shiftInfo.content
+            };
+          }
+          groupedShifts[key].timeSlots.push(shiftInfo.time);
         }
       }
+    });
+    
+    // 各グループについて時間帯をマージしてカレンダーに追加
+    let syncCount = 0;
+    Object.values(groupedShifts).forEach(group => {
+      // 時間帯をソートして連続する時間帯をマージ
+      const mergedTimeRanges = mergeConsecutiveTimeSlots(group.timeSlots);
+      
+      // マージされた各時間帯をカレンダーに追加
+      mergedTimeRanges.forEach(timeRange => {
+        const shiftInfo = {
+          userId: group.userId,
+          userName: group.userName,
+          userEmail: group.userEmail,
+          date: group.date,
+          time: timeRange,
+          content: group.content
+        };
+        addToCalendar(shiftInfo);
+        syncCount++;
+      });
     });
     
     Logger.log(`${syncCount}件のシフトをカレンダーに同期しました`);
     
   } catch (error) {
     Logger.log('一括同期に失敗しました: ' + error.toString());
+    throw error;
+  }
+}
+
+// カレンダーからすべてのシフト関連イベントを削除する関数
+function deleteAllShiftsFromCalendar() {
+  try {
+    // カレンダーを取得
+    const calendar = CalendarApp.getCalendarById(getCalendarId());
+    
+    if (!calendar) {
+      throw new Error('カレンダーが見つかりません: ' + getCalendarId());
+    }
+    
+    // 過去1年から未来1年までのイベントを取得
+    const now = new Date();
+    const pastDate = new Date(now.getTime() - (365 * 24 * 60 * 60 * 1000)); // 1年前
+    const futureDate = new Date(now.getTime() + (365 * 24 * 60 * 60 * 1000)); // 1年後
+    const events = calendar.getEvents(pastDate, futureDate);
+    
+    let deletedCount = 0;
+    
+    // シフト関連のイベントを削除
+    events.forEach(event => {
+      // シフト関連のイベントを識別（タイトルに「 - 」が含まれ、説明に「担当者:」が含まれる）
+      if (event.getTitle().includes(' - ') && event.getDescription().includes('担当者:')) {
+        event.deleteEvent();
+        deletedCount++;
+      }
+    });
+    
+    Logger.log(`${deletedCount}件のシフト関連イベントをカレンダーから削除しました`);
+    
+  } catch (error) {
+    Logger.log('カレンダーからのシフト削除に失敗しました: ' + error.toString());
     throw error;
   }
 }
@@ -869,22 +947,44 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
       
       results.processed = validTimeSlots;
       
-      // Google Calendarに予定を一括追加
-      validTimeSlots.forEach(timeSlot => {
-        try {
-          addToCalendar({
-            userId,
-            userName,
-            userEmail,
-            date,
-            time: timeSlot,
-            content: content || 'シフト'
-          });
-        } catch (calendarError) {
-          Logger.log(`カレンダー追加エラー (${timeSlot}): ${calendarError.toString()}`);
-          results.errors.push(`カレンダー追加に失敗: ${timeSlot}`);
-        }
-      });
+      // Google Calendarに予定を追加（連続する時間帯をマージして）
+      try {
+        const mergedTimeRanges = mergeConsecutiveTimeSlots(validTimeSlots);
+        
+        mergedTimeRanges.forEach(timeRange => {
+          try {
+            addToCalendar({
+              userId,
+              userName,
+              userEmail,
+              date,
+              time: timeRange,
+              content: content || 'シフト'
+            });
+          } catch (calendarError) {
+            Logger.log(`カレンダー追加エラー (${timeRange}): ${calendarError.toString()}`);
+            results.errors.push(`カレンダー追加に失敗: ${timeRange}`);
+          }
+        });
+      } catch (mergeError) {
+        Logger.log(`時間範囲マージエラー: ${mergeError.toString()}`);
+        // マージに失敗した場合は個別に追加
+        validTimeSlots.forEach(timeSlot => {
+          try {
+            addToCalendar({
+              userId,
+              userName,
+              userEmail,
+              date,
+              time: timeSlot,
+              content: content || 'シフト'
+            });
+          } catch (calendarError) {
+            Logger.log(`カレンダー追加エラー (${timeSlot}): ${calendarError.toString()}`);
+            results.errors.push(`カレンダー追加に失敗: ${timeSlot}`);
+          }
+        });
+      }
     }
     
     return results;
@@ -1055,6 +1155,41 @@ function deleteShiftRequest(spreadsheet, data) {
       message: 'シフト削除中にエラーが発生しました'
     };
   }
+}
+
+// 連続する時間帯をマージする関数
+function mergeConsecutiveTimeSlots(timeSlots) {
+  if (timeSlots.length === 0) return [];
+  
+  // 時間帯を開始時刻でソート
+  const sorted = timeSlots.sort((a, b) => {
+    const timeA = a.replace(/(\d+):(\d+)-(\d+):(\d+)/, '$1$2');
+    const timeB = b.replace(/(\d+):(\d+)-(\d+):(\d+)/, '$1$2');
+    return parseInt(timeA) - parseInt(timeB);
+  });
+  
+  const merged = [];
+  let currentStart = sorted[0].split('-')[0];
+  let currentEnd = sorted[0].split('-')[1];
+  
+  for (let i = 1; i < sorted.length; i++) {
+    const [nextStart, nextEnd] = sorted[i].split('-');
+    
+    // 現在の終了時刻と次の開始時刻が一致すれば連続
+    if (currentEnd === nextStart) {
+      currentEnd = nextEnd;
+    } else {
+      // 連続していない場合は現在の範囲を保存して新しい範囲を開始
+      merged.push(`${currentStart}-${currentEnd}`);
+      currentStart = nextStart;
+      currentEnd = nextEnd;
+    }
+  }
+  
+  // 最後の範囲を追加
+  merged.push(`${currentStart}-${currentEnd}`);
+  
+  return merged;
 }
 
 // Google Calendarからシフトを削除する関数

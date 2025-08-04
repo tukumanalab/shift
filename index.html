@@ -114,12 +114,35 @@
         .logout-btn-small:hover {
             background-color: #c82333;
         }
+        .sync-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
         .sync-btn {
             background-color: #17a2b8;
             color: white;
-            margin-bottom: 20px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
         }
         .sync-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .delete-all-btn {
+            background-color: #dc3545;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .delete-all-btn:hover {
+            background-color: #c82333;
+        }
+        .delete-all-btn:disabled {
             background-color: #6c757d;
             cursor: not-allowed;
         }
@@ -1295,9 +1318,14 @@
             </div>
 
             <div id="shift-list" class="tab-content">
-                <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
-                    Googleカレンダーと同期
-                </button>
+                <div class="sync-buttons">
+                    <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
+                        Googleカレンダーと同期
+                    </button>
+                    <button id="deleteAllBtn" class="delete-all-btn" onclick="deleteAllShiftsFromCalendar()">
+                        カレンダーの全シフトを削除
+                    </button>
+                </div>
                 <div id="shiftCalendarContainer" class="calendar-container">
                     <!-- カレンダーが動的に生成されます -->
                 </div>
