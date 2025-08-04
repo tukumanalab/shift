@@ -1500,20 +1500,24 @@ function displayMyShifts(container, shiftsData) {
             day: 'numeric'
         });
         
-        // 過去のシフトかどうか判定
+        // 削除可能性の判定（翌日以降のみ削除可能）
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const isPastShift = shiftDate < today;
-        const rowClass = isPastShift ? 'past-shift' : 'future-shift';
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
         
-        // 削除ボタンの表示（未来のシフトのみ）
-        const deleteButtonHTML = isPastShift ? 
-            '<td class="shift-actions">-</td>' : 
+        const isPastOrToday = shiftDate < tomorrow; // 今日以前（今日を含む）
+        const canDelete = shiftDate >= tomorrow; // 翌日以降のみ削除可能
+        const rowClass = isPastOrToday ? 'past-shift' : 'future-shift';
+        
+        // 削除ボタンの表示（翌日以降のシフトのみ）
+        const deleteButtonHTML = canDelete ? 
             `<td class="shift-actions">
                 <button class="my-shift-delete-btn" onclick="deleteMyShift('${shift.shiftDate}', '${shift.timeSlot}', this)">
                     削除
                 </button>
-            </td>`;
+            </td>` :
+            '<td class="shift-actions">-</td>';
         
         tableHTML += `
             <tr class="${rowClass}">
@@ -1539,6 +1543,18 @@ function displayMyShifts(container, shiftsData) {
 async function deleteMyShift(shiftDate, timeSlot, buttonElement) {
     if (!currentUser) {
         alert('ログインしてください。');
+        return;
+    }
+    
+    // 翌日以降のシフトかチェック
+    const targetDate = new Date(shiftDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (targetDate < tomorrow) {
+        alert('今日以前のシフトは削除できません。翌日以降のシフトのみ削除可能です。');
         return;
     }
     
