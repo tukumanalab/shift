@@ -134,12 +134,9 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
         
     } else if (data.type === 'syncAll') {
-      // 全シフトデータの同期
-      syncAllShiftsToCalendar();
-      
-    } else if (data.type === 'deleteAllFromCalendar') {
-      // カレンダーからすべてのシフトを削除
+      // カレンダーから既存のシフトを削除してから全シフトを同期
       deleteAllShiftsFromCalendar();
+      syncAllShiftsToCalendar();
       
     } else if (data.type === 'saveUser') {
       // ユーザーログインデータの処理

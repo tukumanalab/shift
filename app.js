@@ -95,7 +95,7 @@ async function syncAllShiftsToCalendar() {
     
     const syncBtn = document.getElementById('syncBtn');
     syncBtn.disabled = true;
-    syncBtn.textContent = '同期中...';
+    syncBtn.textContent = '削除・同期中...';
     
     try {
         await fetch(GOOGLE_APPS_SCRIPT_URL, {
@@ -110,8 +110,8 @@ async function syncAllShiftsToCalendar() {
             })
         });
         
-        console.log('すべてのシフトをカレンダーに同期しました');
-        alert('すべてのシフトがカレンダーに同期されました！');
+        console.log('既存のシフトを削除してから全シフトをカレンダーに同期しました');
+        alert('カレンダーから既存のシフトを削除し、全シフトを再同期しました！');
         
     } catch (error) {
         console.error('同期に失敗しました:', error);
@@ -122,49 +122,6 @@ async function syncAllShiftsToCalendar() {
     }
 }
 
-async function deleteAllShiftsFromCalendar() {
-    if (!currentUser) {
-        alert('ログインが必要です。');
-        return;
-    }
-    
-    if (!isAdminUser) {
-        alert('管理者権限が必要です。');
-        return;
-    }
-    
-    if (!confirm('Googleカレンダーからすべてのシフト予定を削除しますか？\nこの操作は取り消せません。')) {
-        return;
-    }
-    
-    const deleteBtn = document.getElementById('deleteAllBtn');
-    deleteBtn.disabled = true;
-    deleteBtn.textContent = '削除中...';
-    
-    try {
-        await fetch(GOOGLE_APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            mode: 'no-cors',
-            body: JSON.stringify({
-                type: 'deleteAllFromCalendar',
-                userId: currentUser.sub
-            })
-        });
-        
-        console.log('カレンダーからすべてのシフトを削除しました');
-        alert('カレンダーからすべてのシフト予定を削除しました！');
-        
-    } catch (error) {
-        console.error('削除に失敗しました:', error);
-        alert('削除に失敗しました。再度お試しください。');
-    } finally {
-        deleteBtn.disabled = false;
-        deleteBtn.textContent = 'カレンダーの全シフトを削除';
-    }
-}
 
 function signOut() {
     google.accounts.id.disableAutoSelect();
