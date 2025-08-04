@@ -471,9 +471,8 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                         // 申請不可能な日は無効化
                         cell.classList.add('past-date');
                         cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
-                        // 内容は表示しない
-                        continue;
-                    }
+                        // 内容は表示しないが、cellは作成して日付インクリメントは続ける
+                    } else {
                     
                     const requestInfo = document.createElement('div');
                     requestInfo.className = 'shift-request-info';
@@ -501,6 +500,7 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     
                     cell.appendChild(requestInfo);
                     cell.setAttribute('data-date', dateKey);
+                    }
                 } else {
                     // シフト一覧モードの場合は全員のシフト情報を表示
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
