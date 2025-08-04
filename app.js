@@ -312,6 +312,18 @@ function generateCalendar(containerId, isCapacityMode = false, isRequestMode = f
         endDate = new Date(currentYear + 1, 3, 0);
     }
     
+    // シフト申請モードの場合は申請可能期間に制限
+    if (isRequestMode) {
+        const currentDay = today.getDate();
+        if (currentDay >= 15) {
+            // 15日以降なら次の月まで表示
+            endDate = new Date(currentYear, today.getMonth() + 2, 0); // 次月末日
+        } else {
+            // 15日未満なら今月まで表示
+            endDate = new Date(currentYear, today.getMonth() + 1, 0); // 今月末日
+        }
+    }
+    
     let currentDate = new Date(startDate);
     
     while (currentDate <= endDate) {
