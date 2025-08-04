@@ -460,6 +460,20 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                 } else if (isRequestMode) {
                     // シフト申請モードの場合は人数表示と申請ボタン
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                    const cellDate = new Date(year, month, date);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    // 申請可能日かチェック
+                    const isValidRequestDate = isDateAvailableForRequest(cellDate, today);
+                    
+                    if (!isValidRequestDate || cellDate < today) {
+                        // 申請不可能な日は無効化
+                        cell.classList.add('past-date');
+                        cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
+                        // 内容は表示しない
+                        continue;
+                    }
                     
                     const requestInfo = document.createElement('div');
                     requestInfo.className = 'shift-request-info';
@@ -517,6 +531,39 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
     
     monthDiv.appendChild(table);
     return monthDiv;
+}
+
+// シフト申請可能日の判定関数
+function isDateAvailableForRequest(targetDate, currentDate) {
+    const target = new Date(targetDate);
+    const current = new Date(currentDate);
+    
+    // 本日以前は申請不可
+    if (target < current) {
+        return false;
+    }
+    
+    const currentYear = current.getFullYear();
+    const currentMonth = current.getMonth(); // 0-11
+    const currentDay = current.getDate();
+    
+    const targetYear = target.getFullYear();
+    const targetMonth = target.getMonth(); // 0-11
+    
+    // 月の差を計算
+    const monthsDiff = (targetYear - currentYear) * 12 + (targetMonth - currentMonth);
+    
+    if (monthsDiff === 0) {
+        // 同じ月：今日以降は申請可能
+        return true;
+    } else if (monthsDiff === 1) {
+        // 次の月：15日以降なら申請可能
+        // 例：7/15以降なら8月分申請可能
+        return currentDay >= 15;
+    } else {
+        // 2ヶ月以上先は申請不可
+        return false;
+    }
 }
 
 function getDefaultCapacity(dayOfWeek) {
