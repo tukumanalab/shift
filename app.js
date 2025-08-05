@@ -128,6 +128,35 @@ async function syncAllShiftsToCalendar() {
     }
 }
 
+async function reloadCalendar() {
+    console.log('カレンダーをリロード中...');
+    
+    // キャッシュをクリア
+    allShiftsCache = null;
+    capacityCache = null;
+    
+    // ローディング表示
+    const container = document.getElementById('shiftCalendarContainer');
+    if (container) {
+        container.innerHTML = `
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">カレンダーを再読み込み中...</div>
+            </div>
+        `;
+    }
+    
+    // データを再読み込み
+    await Promise.all([
+        loadAllShiftsToCache(),
+        loadCapacityToCache()
+    ]);
+    
+    // カレンダーを再描画
+    displayShiftList();
+    
+    console.log('カレンダーのリロードが完了しました');
+}
 
 function signOut() {
     google.accounts.id.disableAutoSelect();

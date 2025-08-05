@@ -126,10 +126,20 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            margin-right: 10px;
+        }
+        .sync-btn:hover:not(:disabled) {
+            background-color: #138496;
         }
         .sync-btn:disabled {
             background-color: #6c757d;
             cursor: not-allowed;
+        }
+        #reloadBtn {
+            background-color: #28a745;
+        }
+        #reloadBtn:hover:not(:disabled) {
+            background-color: #218838;
         }
         .delete-all-btn {
             background-color: #dc3545;
@@ -1349,6 +1359,9 @@
 
             <div id="shift-list" class="tab-content">
                 <div class="sync-buttons">
+                    <button id="reloadBtn" class="sync-btn" onclick="reloadCalendar()">
+                        カレンダーをリロード
+                    </button>
                     <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
                         Googleカレンダーと同期し直す
                     </button>
