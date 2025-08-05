@@ -93,6 +93,12 @@ async function syncAllShiftsToCalendar() {
         return;
     }
     
+    // 確認ダイアログを表示
+    const confirmSync = confirm('本当にGoogleカレンダーと同期し直しますか？\n既存のカレンダー上のシフトをすべて削除してから、再度同期します。');
+    if (!confirmSync) {
+        return;
+    }
+    
     const syncBtn = document.getElementById('syncBtn');
     syncBtn.disabled = true;
     syncBtn.textContent = '削除・同期中...';
@@ -118,7 +124,7 @@ async function syncAllShiftsToCalendar() {
         alert('同期に失敗しました。再度お試しください。');
     } finally {
         syncBtn.disabled = false;
-        syncBtn.textContent = 'Googleカレンダーと同期';
+        syncBtn.textContent = 'Googleカレンダーと同期し直す';
     }
 }
 
