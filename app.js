@@ -3,6 +3,7 @@ const GOOGLE_CLIENT_ID = config.GOOGLE_CLIENT_ID;
 const AUTHORIZED_EMAILS = config.AUTHORIZED_EMAILS.split(',').map(email => email.trim());
 
 let currentUser = null;
+let currentUserProfile = null; // ユーザープロフィール（ニックネーム、本名）をキャッシュ
 let isAdminUser = false;
 let myShiftsCache = null; // 自分のシフトデータのキャッシュ
 let allShiftsCache = null; // 全員のシフトデータのキャッシュ（管理者用）
@@ -61,11 +62,36 @@ async function showProfile(profileData) {
         // 一般ユーザーの場合、必要なデータを初回に読み込み
         await Promise.all([
             loadUserShiftsData(),     // 自分のシフトデータ
-            loadCapacityToCache()     // 人数設定データ（シフト申請用）
+            loadCapacityToCache(),    // 人数設定データ（シフト申請用）
+            loadUserProfile()         // ユーザープロフィール（ニックネーム、本名）
         ]);
         // キャッシュを使って初期表示
         displayMyShifts(document.getElementById('myShiftsCalendarContainer'), myShiftsCache);
     }
+}
+
+// ユーザープロフィールを取得してキャッシュする関数
+async function loadUserProfile() {
+    if (!currentUser) {
+        return;
+    }
+    
+    try {
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'getUserProfile',
+            userId: currentUser.sub
+        });
+        
+        if (result.success && result.data) {
+            currentUserProfile = result.data;
+            console.log('ユーザープロフィールをキャッシュに保存しました:', currentUserProfile);
+        }
+    } catch (error) {
+        console.error('ユーザープロフィールの取得に失敗:', error);
+    }
+    
+    // プロフィール入力状況をチェック
+    checkProfileCompleteness();
 }
 
 // ユーザーのシフトデータを取得してキャッシュする関数
@@ -198,35 +224,6 @@ async function syncAllShiftsToCalendar() {
     }
 }
 
-async function reloadCalendar() {
-    console.log('カレンダーをリロード中...');
-    
-    // キャッシュをクリア
-    allShiftsCache = null;
-    capacityCache = null;
-    
-    // ローディング表示
-    const container = document.getElementById('shiftCalendarContainer');
-    if (container) {
-        container.innerHTML = `
-            <div class="loading-container">
-                <div class="loading-spinner"></div>
-                <div class="loading-text">カレンダーを再読み込み中...</div>
-            </div>
-        `;
-    }
-    
-    // データを再読み込み
-    await Promise.all([
-        loadAllShiftsToCache(),
-        loadCapacityToCache()
-    ]);
-    
-    // カレンダーを再描画
-    displayShiftList();
-    
-    console.log('カレンダーのリロードが完了しました');
-}
 
 function signOut() {
     google.accounts.id.disableAutoSelect();
@@ -268,6 +265,8 @@ function setupTabSwitching() {
                 loadMyShifts(); // キャッシュからデータを表示
             } else if (targetTab === 'shift-request') {
                 loadShiftRequestForm();
+            } else if (targetTab === 'settings') {
+                loadSettings();
             }
         });
     });
@@ -1314,7 +1313,7 @@ function updateTabVisibility() {
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
     const adminTabs = ['shift-list', 'capacity-settings'];
-    const userTabs = ['my-shifts', 'shift-request'];
+    const userTabs = ['my-shifts', 'shift-request', 'settings'];
     
     // まず全てのタブボタンとコンテンツをリセット
     tabButtons.forEach(button => {
@@ -1731,6 +1730,131 @@ async function loadShiftRequestForm() {
     } catch (error) {
         console.error('シフト申請フォームの読み込みに失敗しました:', error);
         container.innerHTML = '<p>シフト申請フォームの読み込みに失敗しました。</p>';
+    }
+}
+
+async function saveSettings() {
+    const realName = document.getElementById('realName').value;
+    const nickname = document.getElementById('nickname').value;
+    
+    if (!currentUser) {
+        alert('ログインしてください');
+        return;
+    }
+    
+    // ボタンを無効化
+    const submitBtn = document.querySelector('#settings .submit-btn');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = '保存中...';
+    
+    try {
+        // スプレッドシートにユーザー情報を更新
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, {
+            type: 'updateUserProfile',
+            userId: currentUser.sub,
+            nickname: nickname,
+            realName: realName
+        });
+        
+        if (result.success) {
+            // キャッシュを更新
+            currentUserProfile = {
+                realName: realName,
+                nickname: nickname
+            };
+            
+            // ローカルストレージにも保存
+            localStorage.setItem('userRealName', realName);
+            localStorage.setItem('userNickname', nickname);
+            
+            alert('設定を保存しました');
+            console.log('設定を保存:', { realName, nickname });
+            
+            // プロフィール入力状況を再チェック
+            checkProfileCompleteness();
+        } else {
+            alert('設定の保存に失敗しました: ' + (result.error || '不明なエラー'));
+        }
+    } catch (error) {
+        console.error('設定保存エラー:', error);
+        alert('設定の保存に失敗しました');
+    } finally {
+        // ボタンを有効化
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+}
+
+function loadSettings() {
+    // キャッシュされたプロフィールデータを使用
+    if (currentUserProfile) {
+        if (currentUserProfile.realName) {
+            document.getElementById('realName').value = currentUserProfile.realName;
+        }
+        if (currentUserProfile.nickname) {
+            document.getElementById('nickname').value = currentUserProfile.nickname;
+        }
+    } else {
+        // キャッシュがない場合はローカルストレージから読み込み
+        const realName = localStorage.getItem('userRealName');
+        const nickname = localStorage.getItem('userNickname');
+        
+        if (realName) {
+            document.getElementById('realName').value = realName;
+        }
+        if (nickname) {
+            document.getElementById('nickname').value = nickname;
+        }
+    }
+}
+
+// プロフィール入力状況をチェックして通知を表示する関数
+function checkProfileCompleteness() {
+    if (!currentUser || isAdminUser) {
+        return; // 管理者は通知不要
+    }
+    
+    const hasRealName = currentUserProfile && currentUserProfile.realName && currentUserProfile.realName.trim() !== '';
+    const hasNickname = currentUserProfile && currentUserProfile.nickname && currentUserProfile.nickname.trim() !== '';
+    
+    // 本名またはニックネームのいずれかが未入力の場合に通知を表示
+    if (!hasRealName || !hasNickname) {
+        showProfileNotification();
+    } else {
+        hideProfileNotification();
+    }
+}
+
+// プロフィール入力促進通知を表示
+function showProfileNotification() {
+    const notification = document.getElementById('profileNotification');
+    const mainContent = document.querySelector('.main-content');
+    if (notification) {
+        notification.classList.remove('hidden');
+        if (mainContent) {
+            mainContent.classList.add('with-notification');
+        }
+    }
+}
+
+// プロフィール入力促進通知を非表示
+function hideProfileNotification() {
+    const notification = document.getElementById('profileNotification');
+    const mainContent = document.querySelector('.main-content');
+    if (notification) {
+        notification.classList.add('hidden');
+        if (mainContent) {
+            mainContent.classList.remove('with-notification');
+        }
+    }
+}
+
+// 設定タブを開く関数
+function openSettingsTab() {
+    const settingsTab = document.querySelector('[data-tab="settings"]');
+    if (settingsTab) {
+        settingsTab.click();
     }
 }
 

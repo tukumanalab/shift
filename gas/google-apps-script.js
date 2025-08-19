@@ -49,6 +49,14 @@ function doGet(e) {
       const timeSlots = JSON.parse(params.timeSlots);
       const duplicateResults = checkMultipleDuplicates(spreadsheet, params.userId, params.date, timeSlots);
       responseData = {success: true, duplicates: duplicateResults};
+    } else if (params.type === 'getUserProfile' && params.userId) {
+      // ユーザープロフィールの取得
+      const userProfile = getUserProfile(spreadsheet, params.userId);
+      responseData = {success: true, data: userProfile};
+    } else if (params.type === 'updateUserProfile' && params.userId) {
+      // ユーザープロフィールの更新
+      const result = updateUserProfile(spreadsheet, params.userId, params.nickname, params.realName);
+      responseData = {success: result};
     } else {
       responseData = {success: false, error: 'Invalid request'};
     }
@@ -430,7 +438,9 @@ function saveUserData(spreadsheet, userData) {
         'ユーザーID',
         '名前',
         'メールアドレス',
-        'プロフィール画像URL'
+        'プロフィール画像URL',
+        'ニックネーム',
+        '本名'
       ]);
     }
     
@@ -459,7 +469,9 @@ function saveUserData(spreadsheet, userData) {
       userData.sub,
       userData.name,
       userData.email,
-      userData.picture
+      userData.picture,
+      '', // ニックネーム（初期値は空）
+      ''  // 本名（初期値は空）
     ]);
     
     Logger.log('新規ユーザーを登録しました: ' + userData.email);
@@ -1263,6 +1275,74 @@ function logToDebugSheet(spreadsheet, data) {
     
   } catch (error) {
     Logger.log('デバッグシートへの記録に失敗しました: ' + error.toString());
+  }
+}
+
+// ユーザープロフィールを取得する関数
+function getUserProfile(spreadsheet, userId) {
+  try {
+    const userSheet = spreadsheet.getSheetByName('ユーザー');
+    
+    if (!userSheet) {
+      return null;
+    }
+    
+    const data = userSheet.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      return null;
+    }
+    
+    // ヘッダー行をスキップして、ユーザーIDで検索
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][1] === userId) { // B列: ユーザーID
+        return {
+          nickname: data[i][5] || '', // F列: ニックネーム
+          realName: data[i][6] || ''   // G列: 本名
+        };
+      }
+    }
+    
+    return null;
+    
+  } catch (error) {
+    Logger.log('ユーザープロフィールの取得に失敗しました: ' + error.toString());
+    return null;
+  }
+}
+
+// ユーザープロフィールを更新する関数
+function updateUserProfile(spreadsheet, userId, nickname, realName) {
+  try {
+    const userSheet = spreadsheet.getSheetByName('ユーザー');
+    
+    if (!userSheet) {
+      return false;
+    }
+    
+    const data = userSheet.getDataRange().getValues();
+    
+    if (data.length <= 1) {
+      return false;
+    }
+    
+    // ヘッダー行をスキップして、ユーザーIDで検索
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][1] === userId) { // B列: ユーザーID
+        // F列（ニックネーム）とG列（本名）を更新
+        userSheet.getRange(i + 1, 6).setValue(nickname || ''); // F列
+        userSheet.getRange(i + 1, 7).setValue(realName || '');  // G列
+        
+        Logger.log('ユーザープロフィールを更新しました: ' + userId);
+        return true;
+      }
+    }
+    
+    return false;
+    
+  } catch (error) {
+    Logger.log('ユーザープロフィールの更新に失敗しました: ' + error.toString());
+    return false;
   }
 }
 
