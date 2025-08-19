@@ -9,6 +9,52 @@ let myShiftsCache = null; // 自分のシフトデータのキャッシュ
 let allShiftsCache = null; // 全員のシフトデータのキャッシュ（管理者用）
 let capacityCache = null; // 人数設定データのキャッシュ（管理者用）
 
+// ユーザーの表示名を取得する関数
+function getDisplayName(nickname, realName, fallbackName = null) {
+    const hasNickname = nickname && nickname.trim() !== '';
+    const hasRealName = realName && realName.trim() !== '';
+    
+    if (hasNickname && hasRealName) {
+        return `${nickname}(${realName})`;
+    } else if (hasNickname) {
+        return nickname;
+    } else if (hasRealName) {
+        return realName;
+    } else {
+        return fallbackName || 'ユーザー';
+    }
+}
+
+// 現在のユーザーの表示名を取得する関数
+function getCurrentUserDisplayName() {
+    if (currentUserProfile) {
+        return getDisplayName(
+            currentUserProfile.nickname, 
+            currentUserProfile.realName, 
+            currentUser ? currentUser.name : null
+        );
+    }
+    return currentUser ? currentUser.name : 'ユーザー';
+}
+
+// ヘッダーの表示名を更新する関数
+function updateHeaderDisplayName() {
+    const userNameElement = document.getElementById('userName');
+    if (userNameElement) {
+        userNameElement.textContent = getCurrentUserDisplayName();
+    }
+}
+
+// シフトデータから表示名を取得する関数
+function getShiftDisplayName(shift) {
+    // シフトデータにニックネームや本名が含まれている場合はそれを使用
+    if (shift.nickname || shift.realName) {
+        return getDisplayName(shift.nickname, shift.realName, shift.userName || shift.name);
+    }
+    // 既存の名前を使用
+    return shift.userName || shift.name || '名前未設定';
+}
+
 function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
     
@@ -85,6 +131,9 @@ async function loadUserProfile() {
         if (result.success && result.data) {
             currentUserProfile = result.data;
             console.log('ユーザープロフィールをキャッシュに保存しました:', currentUserProfile);
+            
+            // ヘッダーの表示名を更新
+            updateHeaderDisplayName();
         }
     } catch (error) {
         console.error('ユーザープロフィールの取得に失敗:', error);
@@ -657,7 +706,7 @@ function mergeShiftsByPerson(shiftsForDate) {
     // 個人ごとにグループ化
     const shiftsByPerson = {};
     shiftsForDate.forEach(shift => {
-        const personKey = `${shift.userName || shift.name || '名前未設定'}_${shift.userEmail || shift.email}`;
+        const personKey = `${getShiftDisplayName(shift)}_${shift.userEmail || shift.email}`;
         if (!shiftsByPerson[personKey]) {
             shiftsByPerson[personKey] = {
                 person: shift,
@@ -728,8 +777,8 @@ function displayShiftsForDate(container, dateKey) {
         timeSlotGroups[timeSlot].forEach(shift => {
             const personDiv = document.createElement('div');
             personDiv.className = 'shift-person';
-            personDiv.textContent = shift.userName || shift.name || '名前未設定';
-            personDiv.title = `${shift.userName || shift.name || '名前未設定'} (${shift.userEmail || shift.email || ''})`;
+            personDiv.textContent = getShiftDisplayName(shift);
+            personDiv.title = `${getShiftDisplayName(shift)} (${shift.userEmail || shift.email || ''})`;
             peopleDiv.appendChild(personDiv);
         });
         
@@ -745,7 +794,7 @@ async function deleteShift(shift, dateKey, timeSlot) {
         return;
     }
     
-    const userName = shift.userName || shift.name || '名前未設定';
+    const userName = getShiftDisplayName(shift);
     const userEmail = shift.userEmail || shift.email || '';
     
     if (!confirm(`${userName}さんの${dateKey} ${timeSlot}のシフトを削除しますか？`)) {
@@ -980,12 +1029,12 @@ function openShiftDetailModal(dateKey) {
                 html += `
                     <div class="shift-detail-person">
                         <div class="shift-person-info">
-                            <div class="shift-person-name">${shift.userName || shift.name || '名前未設定'}</div>
+                            <div class="shift-person-name">${getShiftDisplayName(shift)}</div>
                             <div class="shift-person-email">${shift.userEmail || shift.email || ''}</div>
                             ${shift.content && shift.content !== 'シフト' ? `<div class="shift-person-note">${shift.content}</div>` : ''}
                         </div>
                         ${isAdminUser ? `
-                            <button class="shift-delete-btn" onclick="deleteShiftFromModal(this, '${shift.userId}', '${shift.userName || shift.name || '名前未設定'}', '${shift.userEmail || shift.email || ''}', '${dateKey}', '${timeSlot}')">
+                            <button class="shift-delete-btn" onclick="deleteShiftFromModal(this, '${shift.userId}', '${getShiftDisplayName(shift)}', '${shift.userEmail || shift.email || ''}', '${dateKey}', '${timeSlot}')">
                                 削除
                             </button>
                         ` : ''}
@@ -1771,6 +1820,9 @@ async function saveSettings() {
             alert('設定を保存しました');
             console.log('設定を保存:', { realName, nickname });
             
+            // ヘッダーの表示名を更新
+            updateHeaderDisplayName();
+            
             // プロフィール入力状況を再チェック
             checkProfileCompleteness();
         } else {
@@ -2136,7 +2188,7 @@ async function submitShiftRequest() {
     const remarks = document.getElementById('shiftRemarks').value.trim();
     
     // ボタンを無効化
-    const submitBtn = document.querySelector('.submit-btn');
+    const submitBtn = document.querySelector('#shiftRequestModal .submit-btn');
     submitBtn.disabled = true;
     submitBtn.textContent = '申請中...';
     
@@ -2412,7 +2464,7 @@ function toggleAllTimeSlots() {
 
 // 申請ボタンの有効/無効を更新
 function updateSubmitButton() {
-    const submitBtn = document.querySelector('.submit-btn');
+    const submitBtn = document.querySelector('#dateDetailModal .submit-btn');
     if (selectedTimeSlots.length > 0) {
         submitBtn.disabled = false;
         submitBtn.textContent = `選択した${selectedTimeSlots.length}つの時間枠で申請`;

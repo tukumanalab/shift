@@ -164,6 +164,22 @@ function doPost(e) {
   }
 }
 
+// 表示名を取得するヘルパー関数
+function getDisplayName(nickname, realName, fallbackName) {
+  const hasNickname = nickname && nickname.trim() !== '';
+  const hasRealName = realName && realName.trim() !== '';
+  
+  if (hasNickname && hasRealName) {
+    return nickname + '(' + realName + ')';
+  } else if (hasNickname) {
+    return nickname;
+  } else if (hasRealName) {
+    return realName;
+  } else {
+    return fallbackName || 'ユーザー';
+  }
+}
+
 function addToCalendar(shiftData) {
   try {
     // カレンダーを取得
@@ -205,9 +221,12 @@ function addToCalendar(shiftData) {
     Logger.log(`設定された開始時刻: ${startDateTime}`);
     Logger.log(`設定された終了時刻: ${endDateTime}`);
     
+    // 表示名を取得
+    const displayName = getDisplayName(shiftData.nickname, shiftData.realName, shiftData.userName);
+    
     // イベントのタイトルと詳細を作成
-    const title = `${shiftData.userName} - つくまなバイト2`;
-    const description = `担当者: ${shiftData.userName}
+    const title = `${displayName} - つくまなバイト2`;
+    const description = `担当者: ${displayName}
 メール: ${shiftData.userEmail}
 時間: ${shiftData.time}
 内容: ${shiftData.content}`;
@@ -492,6 +511,26 @@ function loadUserShifts(spreadsheet, userId) {
       return [];
     }
     
+    // ユーザー情報を取得（表示名のため）
+    const userSheet = spreadsheet.getSheetByName('ユーザー');
+    const userProfiles = {};
+    
+    if (userSheet) {
+      const userData = userSheet.getDataRange().getValues();
+      if (userData.length > 1) {
+        // ヘッダー行をスキップしてユーザー情報をマップ化
+        for (let i = 1; i < userData.length; i++) {
+          const userRow = userData[i];
+          if (userRow[1]) { // ユーザーIDが存在する場合
+            userProfiles[userRow[1]] = {
+              nickname: userRow[5] || '', // F列: ニックネーム
+              realName: userRow[6] || ''   // G列: 本名
+            };
+          }
+        }
+      }
+    }
+    
     // データを取得（ヘッダー行を除く）
     const data = shiftSheet.getDataRange().getValues();
     
@@ -518,6 +557,7 @@ function loadUserShifts(spreadsheet, userId) {
         dateStr = '';
       }
       
+      const userProfile = userProfiles[row[1]] || {};
       return {
         registrationDate: row[0], // A列: 登録日時
         userId: row[1],          // B列: ユーザーID
@@ -525,7 +565,9 @@ function loadUserShifts(spreadsheet, userId) {
         userEmail: row[3],       // D列: メールアドレス
         shiftDate: dateStr,      // E列: シフト日付
         timeSlot: row[5],        // F列: 時間帯
-        content: row[6]          // G列: 予定内容
+        content: row[6],         // G列: 予定内容
+        nickname: userProfile.nickname || '', // ニックネーム
+        realName: userProfile.realName || ''  // 本名
       };
     }).filter(item => item.shiftDate !== ''); // 有効な日付のみ
     
@@ -644,6 +686,26 @@ function syncAllShiftsToCalendar() {
       }
     });
     
+    // ユーザー情報を取得（表示名のため）
+    const userSheet = spreadsheet.getSheetByName('ユーザー');
+    const userProfiles = {};
+    
+    if (userSheet) {
+      const userData = userSheet.getDataRange().getValues();
+      if (userData.length > 1) {
+        // ヘッダー行をスキップしてユーザー情報をマップ化
+        for (let i = 1; i < userData.length; i++) {
+          const userRow = userData[i];
+          if (userRow[1]) { // ユーザーIDが存在する場合
+            userProfiles[userRow[1]] = {
+              nickname: userRow[5] || '', // F列: ニックネーム
+              realName: userRow[6] || ''   // G列: 本名
+            };
+          }
+        }
+      }
+    }
+
     // シフトデータを取得（ヘッダー行を除く）
     const shiftData = shiftSheet.getDataRange().getValues().slice(1);
     
@@ -652,13 +714,16 @@ function syncAllShiftsToCalendar() {
     
     shiftData.forEach(row => {
       if (row.length >= 7) {
+        const userProfile = userProfiles[row[1]] || {};
         const shiftInfo = {
           userId: row[1],
           userName: row[2],
           userEmail: row[3],
           date: row[4],
           time: row[5],
-          content: row[6]
+          content: row[6],
+          nickname: userProfile.nickname || '',
+          realName: userProfile.realName || ''
         };
         
         // 日付が有効かチェック
@@ -672,7 +737,9 @@ function syncAllShiftsToCalendar() {
               userEmail: shiftInfo.userEmail,
               date: shiftInfo.date,
               timeSlots: [],
-              content: shiftInfo.content
+              content: shiftInfo.content,
+              nickname: shiftInfo.nickname,
+              realName: shiftInfo.realName
             };
           }
           groupedShifts[key].timeSlots.push(shiftInfo.time);
@@ -694,7 +761,9 @@ function syncAllShiftsToCalendar() {
           userEmail: group.userEmail,
           date: group.date,
           time: timeRange,
-          content: group.content
+          content: group.content,
+          nickname: group.nickname,
+          realName: group.realName
         };
         addToCalendar(shiftInfo);
         syncCount++;
@@ -833,6 +902,14 @@ function processSingleShiftRequest(spreadsheet, data) {
       };
     }
     
+    // ユーザープロフィールを取得して表示名を決定
+    const userProfile = getUserProfile(spreadsheet, data.userId);
+    let displayName = data.userName; // デフォルトは元の名前
+    
+    if (userProfile) {
+      displayName = getDisplayName(userProfile.nickname, userProfile.realName, data.userName);
+    }
+    
     // 重複チェック：同じユーザーが同じ日の同じ時間帯に既に申請していないか確認
     const existingData = shiftSheet.getDataRange().getValues();
     
@@ -871,15 +948,21 @@ function processSingleShiftRequest(spreadsheet, data) {
     shiftSheet.appendRow([
       new Date(),
       data.userId,
-      data.userName,
+      displayName, // 表示名を使用
       data.userEmail,
       data.date,
       data.time,
       data.content
     ]);
     
-    // Google Calendarに予定を追加
-    addToCalendar(data);
+    // Google Calendarに予定を追加（表示名を使用）
+    const calendarData = {
+      ...data,
+      userName: displayName,
+      nickname: userProfile ? userProfile.nickname : '',
+      realName: userProfile ? userProfile.realName : ''
+    };
+    addToCalendar(calendarData);
     
     return { success: true };
     
@@ -917,6 +1000,14 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
       errors: []
     };
     
+    // ユーザープロフィールを取得して表示名を決定
+    const userProfile = getUserProfile(spreadsheet, userId);
+    let displayName = userName; // デフォルトは元の名前
+    
+    if (userProfile) {
+      displayName = getDisplayName(userProfile.nickname, userProfile.realName, userName);
+    }
+    
     // 入力検証
     if (!Array.isArray(timeSlots) || timeSlots.length === 0) {
       return {
@@ -943,7 +1034,7 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
       const rowsToAdd = validTimeSlots.map(timeSlot => [
         new Date(),
         userId,
-        userName,
+        displayName, // 表示名を使用
         userEmail,
         date,
         timeSlot,
@@ -964,11 +1055,13 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
           try {
             addToCalendar({
               userId,
-              userName,
+              userName: displayName, // 表示名を使用
               userEmail,
               date,
               time: timeRange,
-              content: content || 'シフト'
+              content: content || 'シフト',
+              nickname: userProfile ? userProfile.nickname : '',
+              realName: userProfile ? userProfile.realName : ''
             });
           } catch (calendarError) {
             Logger.log(`カレンダー追加エラー (${timeRange}): ${calendarError.toString()}`);
@@ -1345,4 +1438,3 @@ function updateUserProfile(spreadsheet, userId, nickname, realName) {
     return false;
   }
 }
-
