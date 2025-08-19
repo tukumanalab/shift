@@ -1352,6 +1352,9 @@
                     <button id="syncBtn" class="sync-btn" onclick="syncAllShiftsToCalendar()">
                         Googleカレンダーと同期
                     </button>
+                    <button id="reloadShiftsBtn" class="sync-btn" onclick="reloadAdminShifts()">
+                        更新（リロード）
+                    </button>
                 </div>
                 <div id="shiftCalendarContainer" class="calendar-container">
                     <!-- カレンダーが動的に生成されます -->
@@ -1369,6 +1372,11 @@
             </div>
 
             <div id="my-shifts" class="tab-content">
+                <div class="sync-buttons">
+                    <button id="reloadMyShiftsBtn" class="sync-btn" onclick="reloadMyShifts()">
+                        更新（リロード）
+                    </button>
+                </div>
                 <div id="myShiftsContent">
                     <!-- 自分のシフト一覧が動的に生成されます -->
                 </div>

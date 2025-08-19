@@ -99,17 +99,14 @@ clasp login
 ```
 gas/
 ├── google-apps-script.js  # メインスクリプトファイル
-├── config.js             # 設定ファイル（カレンダーID等）
 ├── .clasp.json           # clasp設定（gitignore済み）
 ├── appsscript.json       # Apps Script設定（gitignore済み）
 └── .claspignore          # clasp無視ファイル
 ```
 
 #### 設定変更
-Google Apps Scriptの設定は `gas/config.js` で変更できます：
-- `CALENDAR_ID`: GoogleカレンダーのカレンダーID
-- `DEFAULT_CAPACITY`: 曜日別のデフォルト人数設定
-- `SHEET_NAMES`: スプレッドシートのシート名
+Google Apps Scriptの設定：
+- `CALENDAR_ID`: Google Apps Scriptのプロパティサービスで設定（プロジェクトの設定→スクリプト プロパティ）
 
 ## 機能
 
