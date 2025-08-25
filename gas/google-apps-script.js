@@ -283,7 +283,8 @@ function loadCapacitySettings(spreadsheet) {
       
       return {
         date: dateStr,
-        capacity: parseInt(row[2]) || 0
+        capacity: parseInt(row[2]) || 0,
+        memo: row[5] || ''
       };
     }).filter(item => item.date !== ''); // 有効な日付のみ
     
@@ -309,7 +310,8 @@ function saveCapacitySettings(spreadsheet, capacityData) {
         '日付',
         '必要人数',
         '更新者ID',
-        '更新者名'
+        '更新者名',
+        'メモ'
       ]);
       
       // 年度末までの全日付のデータを初期化
@@ -367,7 +369,8 @@ function initializeCapacityData(capacitySheet) {
         dateStr,
         defaultCapacity,
         'system',
-        'システム初期化'
+        'システム初期化',
+        ''
       ]);
       
       currentDate.setDate(currentDate.getDate() + 1);
@@ -375,7 +378,7 @@ function initializeCapacityData(capacitySheet) {
     
     // 一括でデータを追加
     if (initData.length > 0) {
-      capacitySheet.getRange(2, 1, initData.length, 5).setValues(initData);
+      capacitySheet.getRange(2, 1, initData.length, 6).setValues(initData);
       Logger.log(`${initData.length}件の人数設定を初期化しました`);
     }
     
@@ -413,12 +416,13 @@ function updateCapacityData(capacitySheet, capacityData) {
       const rowNumber = dateRowMap[item.date];
       if (rowNumber) {
         // 既存の行を更新
-        capacitySheet.getRange(rowNumber, 1, 1, 5).setValues([[
+        capacitySheet.getRange(rowNumber, 1, 1, 6).setValues([[
           new Date(item.timestamp),
           item.date,
           item.capacity,
           item.userId,
-          item.userName
+          item.userName,
+          item.memo || ''
         ]]);
       } else {
         // 新しい日付の場合は追加
@@ -427,7 +431,8 @@ function updateCapacityData(capacitySheet, capacityData) {
           item.date,
           item.capacity,
           item.userId,
-          item.userName
+          item.userName,
+          item.memo || ''
         ]);
       }
     });

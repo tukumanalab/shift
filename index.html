@@ -541,6 +541,52 @@
             align-items: center;
             gap: 2px;
         }
+        .capacity-memo-row {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            width: 100%;
+        }
+        .memo-input {
+            width: 100%;
+            padding: 2px 4px;
+            font-size: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            resize: vertical;
+            min-height: 30px;
+        }
+        .memo-display {
+            font-size: 9px;
+            color: #666;
+            text-align: center;
+            margin-top: 2px;
+            word-break: break-word;
+        }
+        .request-memo-display {
+            font-size: 10px;
+            color: #555;
+            text-align: center;
+            margin-top: 3px;
+            word-break: break-word;
+            max-width: 100%;
+            background-color: #f8f9fa;
+            border-radius: 2px;
+            padding: 2px;
+            min-height: 12px;
+        }
+        .admin-memo-display {
+            font-size: 9px;
+            color: #666;
+            text-align: center;
+            margin: 2px 0;
+            word-break: break-word;
+            background-color: #fff3cd;
+            border-radius: 2px;
+            padding: 2px;
+            min-height: 10px;
+            border: 1px solid #ffeaa7;
+        }
         .capacity-edit-controls {
             display: flex;
             gap: 3px;
@@ -1472,7 +1518,7 @@
         <div id="appContent" class="hidden">
             <div class="tabs">
                 <button class="tab-button active" data-tab="shift-list" style="display: none;">シフト一覧</button>
-                <button class="tab-button" data-tab="capacity-settings" style="display: none;">シフト人数設定</button>
+                <button class="tab-button" data-tab="capacity-settings" style="display: none;">シフト人数&メモ設定</button>
                 <button class="tab-button" data-tab="my-shifts" style="display: none;">自分のシフト一覧</button>
                 <button class="tab-button" data-tab="shift-request" style="display: none;">シフト申請</button>
                 <button class="tab-button" data-tab="settings" style="display: none;">設定</button>
