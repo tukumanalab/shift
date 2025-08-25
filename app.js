@@ -398,10 +398,13 @@ function displayCapacityOnAdminCalendar(capacityData) {
             const memo = memoMap[dateKey];
             memoDisplayElement.textContent = memo;
             
-            // メモがある場合は背景色を変更
+            // メモがある場合は表示、ない場合は非表示
             if (memo.trim()) {
+                memoDisplayElement.style.display = 'block';
                 memoDisplayElement.style.backgroundColor = '#fff3cd';
                 memoDisplayElement.style.border = '1px solid #ffeaa7';
+            } else {
+                memoDisplayElement.style.display = 'none';
             }
         }
     });
@@ -2137,10 +2140,13 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
                     const memo = memoMap[dateKey] || '';
                     memoDisplayElement.textContent = memo;
                     
-                    // メモがある場合は背景色を変更
+                    // メモがある場合は表示、ない場合は非表示
                     if (memo.trim()) {
-                        memoDisplayElement.style.backgroundColor = '#e3f2fd';
-                        memoDisplayElement.style.border = '1px solid #2196f3';
+                        memoDisplayElement.style.display = 'block';
+                        memoDisplayElement.style.backgroundColor = '#fff3cd';
+                        memoDisplayElement.style.border = '1px solid #ffeaa7';
+                    } else {
+                        memoDisplayElement.style.display = 'none';
                     }
                 }
                 
