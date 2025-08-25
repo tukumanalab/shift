@@ -8,3 +8,5 @@ config.js
 
 # clasp files
 gas/.clasp.json
+
+.playwright-mcp
