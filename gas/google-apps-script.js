@@ -101,8 +101,6 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     
-    // デバッグ用：受信したデータを「debug」シートに記録
-    logToDebugSheet(spreadsheet, data);
     
     if (data.type === 'shift') {
       // 単一シフトデータの処理（従来の処理）
@@ -225,11 +223,10 @@ function addToCalendar(shiftData) {
     const displayName = getDisplayName(shiftData.nickname, shiftData.realName, shiftData.userName);
     
     // イベントのタイトルと詳細を作成
-    const title = `${displayName} - つくまなバイト2`;
+    const title = displayName;
     const description = `担当者: ${displayName}
 メール: ${shiftData.userEmail}
-時間: ${shiftData.time}
-内容: ${shiftData.content}`;
+時間: ${shiftData.time}`;
     
     // カレンダーにイベントを追加
     const event = calendar.createEvent(title, startDateTime, endDateTime, {
@@ -392,7 +389,6 @@ function updateCapacityData(capacitySheet, capacityData) {
   try {
     // 既存のデータを取得
     const existingData = capacitySheet.getDataRange().getValues();
-    const headerRow = existingData[0];
     const dataRows = existingData.slice(1);
     
     // 日付をキーとするマップを作成
@@ -511,7 +507,7 @@ function loadUserShifts(spreadsheet, userId) {
       return [];
     }
     
-    // ユーザー情報を取得（表示名のため）
+    // ユーザー情報を取得（表示名とメールアドレスのため）
     const userSheet = spreadsheet.getSheetByName('ユーザー');
     const userProfiles = {};
     
@@ -523,7 +519,9 @@ function loadUserShifts(spreadsheet, userId) {
           const userRow = userData[i];
           if (userRow[1]) { // ユーザーIDが存在する場合
             userProfiles[userRow[1]] = {
-              nickname: userRow[5] || '', // F列: ニックネーム
+              name: userRow[2] || '',      // C列: 名前
+              email: userRow[3] || '',     // D列: メールアドレス
+              nickname: userRow[5] || '',  // F列: ニックネーム
               realName: userRow[6] || ''   // G列: 本名
             };
           }
@@ -541,12 +539,12 @@ function loadUserShifts(spreadsheet, userId) {
     
     // ユーザーのシフトデータをフィルタリング（管理者の場合は全員のデータを返す）
     const userShifts = data.slice(1).filter(row => {
-      return row.length >= 7 && (userId === 'admin' || row[1] === userId); // 管理者または指定ユーザー
+      return row.length >= 4 && (userId === 'admin' || row[1] === userId); // 管理者または指定ユーザー
     }).map(row => {
       let dateStr = '';
       try {
         // 日付の形式を統一
-        const dateValue = row[4]; // E列のシフト日付
+        const dateValue = row[2]; // C列のシフト日付
         if (dateValue instanceof Date) {
           dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
         } else if (typeof dateValue === 'string') {
@@ -558,14 +556,16 @@ function loadUserShifts(spreadsheet, userId) {
       }
       
       const userProfile = userProfiles[row[1]] || {};
+      const displayName = getDisplayName(userProfile.nickname, userProfile.realName, userProfile.name);
+      
       return {
         registrationDate: row[0], // A列: 登録日時
         userId: row[1],          // B列: ユーザーID
-        userName: row[2],        // C列: ユーザー名
-        userEmail: row[3],       // D列: メールアドレス
-        shiftDate: dateStr,      // E列: シフト日付
-        timeSlot: row[5],        // F列: 時間帯
-        content: row[6],         // G列: 予定内容
+        userName: displayName,   // 表示名（ユーザータブから取得）
+        userEmail: userProfile.email || '', // メール（ユーザータブから取得）
+        shiftDate: dateStr,      // C列: シフト日付
+        timeSlot: row[3],        // D列: 時間帯
+        content: 'シフト',       // 固定値
         nickname: userProfile.nickname || '', // ニックネーム
         realName: userProfile.realName || ''  // 本名
       };
@@ -611,21 +611,21 @@ function loadShiftCounts() {
     const shiftCounts = {};
     
     
-    data.slice(1).forEach((row, index) => {
-      if (row.length >= 7) {
+    data.slice(1).forEach((row) => {
+      if (row.length >= 4) {
         let dateStr = '';
         let timeSlot = '';
         try {
-          // 日付の形式を統一（E列：シフト日付）
-          const dateValue = row[4];
+          // 日付の形式を統一（C列：シフト日付）
+          const dateValue = row[2];
           if (dateValue instanceof Date) {
             dateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
           } else if (typeof dateValue === 'string') {
             dateStr = dateValue;
           }
           
-          // 時間枠（F列）
-          timeSlot = row[5] || '';
+          // 時間枠（D列）
+          timeSlot = row[3] || '';
         } catch (e) {
           Logger.log('データの変換に失敗しました: ' + e.toString());
         }
@@ -698,7 +698,9 @@ function syncAllShiftsToCalendar() {
           const userRow = userData[i];
           if (userRow[1]) { // ユーザーIDが存在する場合
             userProfiles[userRow[1]] = {
-              nickname: userRow[5] || '', // F列: ニックネーム
+              name: userRow[2] || '',      // C列: 名前
+              email: userRow[3] || '',     // D列: メールアドレス
+              nickname: userRow[5] || '',  // F列: ニックネーム
               realName: userRow[6] || ''   // G列: 本名
             };
           }
@@ -713,15 +715,15 @@ function syncAllShiftsToCalendar() {
     const groupedShifts = {};
     
     shiftData.forEach(row => {
-      if (row.length >= 7) {
+      if (row.length >= 4) {
         const userProfile = userProfiles[row[1]] || {};
         const shiftInfo = {
           userId: row[1],
-          userName: row[2],
-          userEmail: row[3],
-          date: row[4],
-          time: row[5],
-          content: row[6],
+          userName: getDisplayName(userProfile.nickname, userProfile.realName, userProfile.name),
+          userEmail: userProfile.email || '',
+          date: row[2],
+          time: row[3],
+          content: 'シフト',
           nickname: userProfile.nickname || '',
           realName: userProfile.realName || ''
         };
@@ -866,10 +868,10 @@ function checkDuplicateShift(spreadsheet, userId, date, time) {
     const isDuplicate = existingData.slice(1).some(row => {
       let rowDateStr = '';
       try {
-        const dateValue = row[4]; // E列: date
+        const dateValue = row[2]; // C列: date
         if (dateValue instanceof Date) {
           rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-        } else if (typeof dateValue === 'string') {
+          } else if (typeof dateValue === 'string') {
           rowDateStr = dateValue;
         }
       } catch (e) {
@@ -878,7 +880,7 @@ function checkDuplicateShift(spreadsheet, userId, date, time) {
       
       return row[1] === userId && // B列: userId
              rowDateStr === date && 
-             row[5] === time; // F列: time
+             row[3] === time; // D列: time
     });
     
     return isDuplicate;
@@ -915,11 +917,11 @@ function processSingleShiftRequest(spreadsheet, data) {
     
     if (existingData.length > 1) { // ヘッダー行を除く
       const isDuplicate = existingData.slice(1).some(row => {
-        // B列: userId, E列: date, F列: time
+        // B列: userId, C列: date, D列: time
         let rowDateStr = '';
         try {
-          // E列の日付をYYYY-MM-DD形式に変換
-          const dateValue = row[4];
+          // C列の日付をYYYY-MM-DD形式に変換
+          const dateValue = row[2];
           if (dateValue instanceof Date) {
             rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
           } else if (typeof dateValue === 'string') {
@@ -931,7 +933,7 @@ function processSingleShiftRequest(spreadsheet, data) {
         
         return row[1] === data.userId && 
                rowDateStr === data.date && 
-               row[5] === data.time;
+               row[3] === data.time;
       });
       
       if (isDuplicate) {
@@ -944,15 +946,12 @@ function processSingleShiftRequest(spreadsheet, data) {
       }
     }
     
-    // シフトデータを追加
+    // シフトデータを追加（ユーザーIDのみ保存）
     shiftSheet.appendRow([
       new Date(),
       data.userId,
-      displayName, // 表示名を使用
-      data.userEmail,
       data.date,
-      data.time,
-      data.content
+      data.time
     ]);
     
     // Google Calendarに予定を追加（表示名を使用）
@@ -1034,15 +1033,12 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
       const rowsToAdd = validTimeSlots.map(timeSlot => [
         new Date(),
         userId,
-        displayName, // 表示名を使用
-        userEmail,
         date,
-        timeSlot,
-        content || 'シフト'
+        timeSlot
       ]);
       
       // 一括でデータを追加（パフォーマンス向上）
-      const range = shiftSheet.getRange(shiftSheet.getLastRow() + 1, 1, rowsToAdd.length, 7);
+      const range = shiftSheet.getRange(shiftSheet.getLastRow() + 1, 1, rowsToAdd.length, 4);
       range.setValues(rowsToAdd);
       
       results.processed = validTimeSlots;
@@ -1126,7 +1122,7 @@ function checkMultipleDuplicates(spreadsheet, userId, date, timeSlots) {
       const isDuplicate = existingData.slice(1).some(row => {
         let rowDateStr = '';
         try {
-          const dateValue = row[4]; // E列: date
+          const dateValue = row[2]; // C列: date
           if (dateValue instanceof Date) {
             rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
           } else if (typeof dateValue === 'string') {
@@ -1138,7 +1134,7 @@ function checkMultipleDuplicates(spreadsheet, userId, date, timeSlots) {
         
         return row[1] === userId && // B列: userId
                rowDateStr === date && 
-               row[5] === timeSlot; // F列: time
+               row[3] === timeSlot; // D列: time
       });
       
       duplicates[timeSlot] = isDuplicate;
@@ -1189,7 +1185,7 @@ function deleteShiftRequest(spreadsheet, data) {
         let rowDateStr = '';
         
         try {
-          const dateValue = row[4]; // E列: date
+          const dateValue = row[2]; // C列: date
           if (dateValue instanceof Date) {
             rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
           } else if (typeof dateValue === 'string') {
@@ -1199,12 +1195,10 @@ function deleteShiftRequest(spreadsheet, data) {
           rowDateStr = '';
         }
         
-        // 条件に一致するシフトを検索
+        // 条件に一致するシフトを検索（ユーザーIDと日付、時間のみで判定）
         if (row[1] === userId &&     // B列: userId
-            row[2] === userName &&   // C列: userName  
-            row[3] === userEmail &&  // D列: userEmail
-            rowDateStr === date &&   // E列: date
-            row[5] === timeSlot) {   // F列: time
+            rowDateStr === date &&   // C列: date
+            row[3] === timeSlot) {   // D列: time
           deletedRows.push({ index: i + 1, timeSlot: timeSlot }); // スプレッドシートの行番号（1ベース）
           break;
         }
@@ -1329,47 +1323,6 @@ function deleteFromCalendar(shiftData) {
   }
 }
 
-// デバッグ用：受信したデータを「debug」シートに記録
-function logToDebugSheet(spreadsheet, data) {
-  try {
-    // 「debug」シートを取得または作成
-    let debugSheet = spreadsheet.getSheetByName('debug');
-    
-    if (!debugSheet) {
-      // シートが存在しない場合は作成
-      debugSheet = spreadsheet.insertSheet('debug');
-      
-      // ヘッダー行を追加
-      debugSheet.appendRow([
-        'タイムスタンプ',
-        'データタイプ',
-        'ユーザーID',
-        'ユーザー名',
-        'メールアドレス',
-        '日付',
-        '時間',
-        'コンテンツ',
-        '生データ(JSON)'
-      ]);
-    }
-    
-    // データを行に追加
-    debugSheet.appendRow([
-      new Date(),
-      data.type || '',
-      data.userId || '',
-      data.userName || '',
-      data.userEmail || '',
-      data.date || '',
-      data.time || '',
-      data.content || '',
-      JSON.stringify(data)
-    ]);
-    
-  } catch (error) {
-    Logger.log('デバッグシートへの記録に失敗しました: ' + error.toString());
-  }
-}
 
 // ユーザープロフィールを取得する関数
 function getUserProfile(spreadsheet, userId) {
