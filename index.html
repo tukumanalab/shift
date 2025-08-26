@@ -136,20 +136,25 @@
             .tabs {
                 flex-wrap: wrap;
                 overflow-x: auto;
-                gap: 2px;
+                gap: 3px;
+                padding: 0 2px;
             }
             .tab-button {
                 flex-shrink: 0;
-                padding: 8px 12px;
-                font-size: 14px;
-                margin-right: 2px;
+                padding: 10px 16px;
+                font-size: 15px;
+                margin-right: 3px;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
             .tab-button[data-tab="settings"] {
                 display: none !important;
             }
             .main-content {
                 margin-top: 60px;
-                padding: 10px;
+                padding: 10px 5px;
             }
             .main-content.with-notification {
                 margin-top: 120px;
@@ -1642,12 +1647,12 @@
             }
             
             .calendar-table {
-                min-width: 500px;
+                min-width: 350px;
             }
             
             .calendar-table td {
-                height: 100px;
-                min-width: 70px;
+                height: 90px;
+                min-width: 50px;
                 padding: 1px;
                 font-size: 10px;
             }
@@ -1700,8 +1705,8 @@
             }
             
             .tab-button {
-                font-size: 12px;
-                padding: 8px 12px;
+                font-size: 14px;
+                padding: 10px 14px;
                 white-space: nowrap;
                 flex-shrink: 0;
             }
