@@ -705,48 +705,56 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     // 申請可能日かチェック
                     const isValidRequestDate = isDateAvailableForRequest(cellDate, today);
                     
-                    // 基本的な表示要素は常に作成
-                    const requestInfo = document.createElement('div');
-                    requestInfo.className = 'shift-request-info';
-                    requestInfo.id = `request-${dateKey}`;
+                    // 募集人数をチェック
+                    const defaultCapacity = getDefaultCapacity(dayOfWeek);
                     
-                    // 必要人数表示
-                    const capacityInfo = document.createElement('div');
-                    capacityInfo.className = 'shift-capacity-info';
-                    capacityInfo.id = `capacity-${dateKey}`;
-                    capacityInfo.innerHTML = `<span class="capacity-number">${getDefaultCapacity(dayOfWeek)}</span><span class="capacity-unit">人</span>`;
-                    requestInfo.appendChild(capacityInfo);
-                    
-                    // メモ表示エリアを追加（常に表示）
-                    const memoDisplay = document.createElement('div');
-                    memoDisplay.className = 'request-memo-display';
-                    memoDisplay.id = `request-memo-${dateKey}`;
-                    memoDisplay.textContent = ''; // 初期は空
-                    requestInfo.appendChild(memoDisplay);
-                    
-                    if (!isValidRequestDate || cellDate < today) {
-                        // 申請不可能な日は無効化
-                        cell.classList.add('past-date');
-                        cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
-                        // 申請ボタンは表示しない
+                    // 募集人数が0の場合は何も表示しない
+                    if (defaultCapacity === 0) {
+                        // 空のセルを作成（何も表示しない）
+                        cell.setAttribute('data-date', dateKey);
                     } else {
-                        // 申請ボタン（申請可能日のみ）
-                        const defaultCapacity = getDefaultCapacity(dayOfWeek);
-                        if (defaultCapacity > 0) {
-                            const applyButton = document.createElement('button');
-                            applyButton.className = 'inline-apply-btn';
-                            applyButton.textContent = '申請';
-                            applyButton.onclick = (e) => {
-                                e.stopPropagation();
-                                openDateDetailModal(dateKey);
-                            };
-                            requestInfo.appendChild(applyButton);
+                        // 基本的な表示要素を作成
+                        const requestInfo = document.createElement('div');
+                        requestInfo.className = 'shift-request-info';
+                        requestInfo.id = `request-${dateKey}`;
+                        
+                        // 必要人数表示
+                        const capacityInfo = document.createElement('div');
+                        capacityInfo.className = 'shift-capacity-info';
+                        capacityInfo.id = `capacity-${dateKey}`;
+                        capacityInfo.innerHTML = `<span class="capacity-number">${defaultCapacity}</span><span class="capacity-unit">人</span>`;
+                        requestInfo.appendChild(capacityInfo);
+                        
+                        // メモ表示エリアを追加
+                        const memoDisplay = document.createElement('div');
+                        memoDisplay.className = 'request-memo-display';
+                        memoDisplay.id = `request-memo-${dateKey}`;
+                        memoDisplay.textContent = ''; // 初期は空
+                        requestInfo.appendChild(memoDisplay);
+                        
+                        if (!isValidRequestDate || cellDate < today) {
+                            // 申請不可能な日は無効化
+                            cell.classList.add('past-date');
+                            cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
+                            // 申請ボタンは表示しない
+                        } else {
+                            // 申請ボタン（申請可能日のみ）
+                            if (defaultCapacity > 0) {
+                                const applyButton = document.createElement('button');
+                                applyButton.className = 'inline-apply-btn';
+                                applyButton.textContent = '申請';
+                                applyButton.onclick = (e) => {
+                                    e.stopPropagation();
+                                    openDateDetailModal(dateKey);
+                                };
+                                requestInfo.appendChild(applyButton);
+                            }
                         }
+                        
+                        // requestInfoを追加
+                        cell.appendChild(requestInfo);
+                        cell.setAttribute('data-date', dateKey);
                     }
-                    
-                    // 全ての日付でrequestInfoを追加
-                    cell.appendChild(requestInfo);
-                    cell.setAttribute('data-date', dateKey);
                 } else {
                     // シフト一覧モードの場合は全員のシフト情報を表示
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
@@ -1798,6 +1806,7 @@ function displayMyShifts(container, shiftsData) {
                     <tr>
                         <th>シフト日</th>
                         <th>時間帯</th>
+                        <th>メモ</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -1839,10 +1848,21 @@ function displayMyShifts(container, shiftsData) {
             </td>` :
             '<td class="shift-actions">-</td>';
         
+        // メモ情報を取得（capacityCacheから）
+        let memo = '';
+        if (capacityCache) {
+            const capacityItem = capacityCache.find(item => item.date === shift.shiftDate);
+            memo = capacityItem ? (capacityItem.memo || '') : '';
+        }
+        
+        // メモがある場合のみスタイルを適用
+        const memoHTML = memo ? `<span class="shift-memo">${memo}</span>` : '';
+        
         tableHTML += `
             <tr class="${rowClass}">
                 <td class="shift-date">${formattedDate}</td>
                 <td class="shift-time">${shift.timeSlot}</td>
+                <td class="shift-memo-cell">${memoHTML}</td>
                 ${deleteButtonHTML}
             </tr>
         `;
