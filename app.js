@@ -1806,7 +1806,6 @@ function displayMyShifts(container, shiftsData) {
                     <tr>
                         <th>シフト日</th>
                         <th>時間帯</th>
-                        <th>メモ</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -1855,14 +1854,13 @@ function displayMyShifts(container, shiftsData) {
             memo = capacityItem ? (capacityItem.memo || '') : '';
         }
         
-        // メモがある場合のみスタイルを適用
-        const memoHTML = memo ? `<span class="shift-memo">${memo}</span>` : '';
+        // メモがある場合のみスタイルを適用して日付の下に表示
+        const memoHTML = memo ? `<br><span class="shift-memo">${memo}</span>` : '';
         
         tableHTML += `
             <tr class="${rowClass}">
-                <td class="shift-date">${formattedDate}</td>
+                <td class="shift-date">${formattedDate}${memoHTML}</td>
                 <td class="shift-time">${shift.timeSlot}</td>
-                <td class="shift-memo-cell">${memoHTML}</td>
                 ${deleteButtonHTML}
             </tr>
         `;
