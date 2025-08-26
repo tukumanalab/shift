@@ -37,11 +37,20 @@ function getCurrentUserDisplayName() {
     return currentUser ? currentUser.name : 'ユーザー';
 }
 
-// ヘッダーの表示名を更新する関数
+// ヘッダーとモバイルメニューの表示名を更新する関数
 function updateHeaderDisplayName() {
+    const displayName = getCurrentUserDisplayName();
+    
+    // PC版ヘッダーの更新
     const userNameElement = document.getElementById('userName');
     if (userNameElement) {
-        userNameElement.textContent = getCurrentUserDisplayName();
+        userNameElement.textContent = displayName;
+    }
+    
+    // モバイルメニューの更新
+    const mobileUserNameElement = document.getElementById('mobileUserName');
+    if (mobileUserNameElement) {
+        mobileUserNameElement.textContent = displayName;
     }
 }
 
@@ -78,14 +87,40 @@ function decodeJwtResponse(token) {
 async function showProfile(profileData) {
     currentUser = profileData;
     
-    document.getElementById('loginButton').classList.add('hidden');
-    document.getElementById('profileInfo').classList.remove('hidden');
-    document.getElementById('loginPrompt').classList.add('hidden');
-    document.getElementById('appContent').classList.remove('hidden');
+    const profileInfo = document.getElementById('profileInfo');
+    const loginPrompt = document.getElementById('loginPrompt');
+    const appContent = document.getElementById('appContent');
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
     
-    document.getElementById('userImage').src = profileData.picture;
-    document.getElementById('userName').textContent = profileData.name;
-    document.getElementById('userEmail').textContent = profileData.email;
+    if (profileInfo) profileInfo.classList.remove('hidden');
+    if (loginPrompt) loginPrompt.classList.add('hidden');
+    if (appContent) appContent.classList.remove('hidden');
+    if (hamburgerBtn) hamburgerBtn.classList.remove('hidden');
+    
+    const userImage = document.getElementById('userImage');
+    const userEmail = document.getElementById('userEmail');
+    const userName = document.getElementById('userName');
+    
+    if (userImage) userImage.src = profileData.picture;
+    if (userEmail) userEmail.textContent = profileData.email;
+    if (userName) userName.textContent = profileData.name;
+    
+    // モバイルメニューのユーザー情報も更新
+    const mobileUserSection = document.getElementById('mobileUserSection');
+    const mobileUserImage = document.getElementById('mobileUserImage');
+    const mobileUserEmail = document.getElementById('mobileUserEmail');
+    const mobileUserName = document.getElementById('mobileUserName');
+    
+    if (mobileUserSection) mobileUserSection.classList.remove('hidden');
+    if (mobileUserImage) mobileUserImage.src = profileData.picture;
+    if (mobileUserEmail) mobileUserEmail.textContent = profileData.email;
+    if (mobileUserName) mobileUserName.textContent = profileData.name;
+    
+    // モバイルメニューの設定項目を管理者の場合は非表示にする
+    const mobileSettingsItem = document.getElementById('mobileSettingsItem');
+    if (mobileSettingsItem) {
+        mobileSettingsItem.style.display = isAdminUser ? 'none' : 'block';
+    }
     
     // 一般ユーザーの場合、ユーザー情報をスプレッドシートに保存
     if (!isAdminUser) {
@@ -100,7 +135,8 @@ async function showProfile(profileData) {
         // 管理者の場合、全データを初回に読み込み
         await Promise.all([
             loadAllShiftsToCache(),  // 全員のシフトデータ
-            loadCapacityToCache()    // 人数設定データ
+            loadCapacityToCache(),   // 人数設定データ
+            loadUserProfile()        // ユーザープロフィール（ニックネーム、本名）
         ]);
         // キャッシュを使って初期表示
         displayShiftList();
@@ -279,16 +315,60 @@ function signOut() {
     
     currentUser = null;
     isAdminUser = false;
-    document.getElementById('loginButton').classList.remove('hidden');
-    document.getElementById('profileInfo').classList.add('hidden');
-    document.getElementById('loginPrompt').classList.remove('hidden');
-    document.getElementById('appContent').classList.add('hidden');
     
-    document.getElementById('userImage').src = '';
-    document.getElementById('userName').textContent = '';
-    document.getElementById('userEmail').textContent = '';
+    const profileInfo = document.getElementById('profileInfo');
+    const loginPrompt = document.getElementById('loginPrompt');
+    const appContent = document.getElementById('appContent');
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    
+    if (profileInfo) profileInfo.classList.add('hidden');
+    if (loginPrompt) loginPrompt.classList.remove('hidden');
+    if (appContent) appContent.classList.add('hidden');
+    if (hamburgerBtn) hamburgerBtn.classList.add('hidden');
+    
+    const userImage = document.getElementById('userImage');
+    const userName = document.getElementById('userName');
+    const userEmail = document.getElementById('userEmail');
+    
+    if (userImage) userImage.src = '';
+    if (userName) userName.textContent = '';
+    if (userEmail) userEmail.textContent = '';
     
     console.log('ユーザーがログアウトしました');
+}
+
+function switchToTab(tabName) {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    // Remove active class from all buttons and contents
+    tabButtons.forEach(btn => btn.classList.remove('active'));
+    tabContents.forEach(content => content.classList.remove('active'));
+
+    // Add active class to corresponding button and content
+    // タブボタンのみにアクティブクラスを追加（モバイルメニュー項目は除外）
+    const targetButton = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+    if (targetButton) {
+        targetButton.classList.add('active');
+    }
+    
+    const targetContent = document.getElementById(tabName);
+    if (targetContent) {
+        targetContent.classList.add('active');
+    }
+    
+    // Load data for the selected tab
+    if (tabName === 'capacity-settings') {
+        loadCapacitySettings();
+    } else if (tabName === 'my-shifts') {
+        loadMyShifts();
+    } else if (tabName === 'shift-list') {
+        reloadAdminShifts();
+    } else if (tabName === 'shift-request') {
+        loadShiftRequestForm();
+    } else if (tabName === 'settings') {
+        loadSettings();
+    }
 }
 
 function setupTabSwitching() {
@@ -298,25 +378,7 @@ function setupTabSwitching() {
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
             const targetTab = button.getAttribute('data-tab');
-
-            // Remove active class from all buttons and contents
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-
-            // Add active class to clicked button and corresponding content
-            button.classList.add('active');
-            document.getElementById(targetTab).classList.add('active');
-            
-            // Load data for the selected tab
-            if (targetTab === 'capacity-settings') {
-                loadCapacitySettings();
-            } else if (targetTab === 'my-shifts') {
-                loadMyShifts(); // キャッシュからデータを表示
-            } else if (targetTab === 'shift-request') {
-                loadShiftRequestForm();
-            } else if (targetTab === 'settings') {
-                loadSettings();
-            }
+            switchToTab(targetTab);
         });
     });
 }
@@ -1362,7 +1424,7 @@ function updateTabVisibility() {
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
     const adminTabs = ['shift-list', 'capacity-settings'];
-    const userTabs = ['my-shifts', 'shift-request', 'settings'];
+    const userTabs = ['shift-request', 'my-shifts', 'settings'];  // シフト申請を最初に配置
     
     // まず全てのタブボタンとコンテンツをリセット
     tabButtons.forEach(button => {
@@ -1390,9 +1452,18 @@ function updateTabVisibility() {
     });
     
     // 最初に表示するタブを選択
-    const visibleButtons = Array.from(tabButtons).filter(btn => btn.style.display !== 'none');
-    if (visibleButtons.length > 0) {
-        visibleButtons[0].click();
+    if (isAdminUser) {
+        // 管理者は「シフト一覧」を最初に表示
+        const shiftListBtn = document.querySelector('[data-tab="shift-list"]');
+        if (shiftListBtn) {
+            shiftListBtn.click();
+        }
+    } else {
+        // 一般ユーザーは「シフト申請」を最初に表示
+        const shiftRequestBtn = document.querySelector('[data-tab="shift-request"]');
+        if (shiftRequestBtn) {
+            shiftRequestBtn.click();
+        }
     }
 }
 
@@ -1586,8 +1657,6 @@ function displayMyShifts(container, shiftsData) {
                     <tr>
                         <th>シフト日</th>
                         <th>時間帯</th>
-                        <th>備考</th>
-                        <th>申請日</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -1633,8 +1702,6 @@ function displayMyShifts(container, shiftsData) {
             <tr class="${rowClass}">
                 <td class="shift-date">${formattedDate}</td>
                 <td class="shift-time">${shift.timeSlot}</td>
-                <td class="shift-content">${shift.content || '-'}</td>
-                <td class="shift-reg-date">${formattedRegDate}</td>
                 ${deleteButtonHTML}
             </tr>
         `;
@@ -1839,6 +1906,10 @@ async function saveSettings() {
 }
 
 function loadSettings() {
+    // フィールドを初期化
+    document.getElementById('realName').value = '';
+    document.getElementById('nickname').value = '';
+    
     // キャッシュされたプロフィールデータを使用
     if (currentUserProfile) {
         if (currentUserProfile.realName) {
@@ -2699,6 +2770,7 @@ window.onload = function () {
     );
     
     setupTabSwitching();
+    setupMobileMenu();
     
     // 日付詳細モーダルのクローズイベント
     document.getElementById('dateDetailClose').onclick = closeDateDetailModal;
@@ -2716,3 +2788,55 @@ window.onload = function () {
         }
     };
 };
+
+// モバイルメニューの設定
+function setupMobileMenu() {
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    const mobileMenuItems = document.querySelectorAll('.mobile-menu-item');
+
+    // ハンバーガーボタンのクリックイベント
+    hamburgerBtn.addEventListener('click', function() {
+        hamburgerBtn.classList.toggle('active');
+        mobileMenu.classList.toggle('active');
+        
+        // メニューを開く時に全てのアクティブクラスをリセット
+        if (mobileMenu.classList.contains('active')) {
+            mobileMenuItems.forEach(menuItem => {
+                menuItem.classList.remove('active');
+            });
+        }
+    });
+
+    // モバイルメニュー項目のクリックイベント
+    mobileMenuItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const tabName = this.getAttribute('data-tab');
+            
+            // タブを切り替え
+            switchToTab(tabName);
+            
+            // メニューを閉じる
+            hamburgerBtn.classList.remove('active');
+            mobileMenu.classList.remove('active');
+            
+            // メニューを閉じる時にアクティブクラスをリセット
+            mobileMenuItems.forEach(menuItem => {
+                menuItem.classList.remove('active');
+            });
+        });
+    });
+
+    // メニュー外をクリックした時に閉じる
+    document.addEventListener('click', function(event) {
+        if (!mobileMenu.contains(event.target) && !hamburgerBtn.contains(event.target)) {
+            hamburgerBtn.classList.remove('active');
+            mobileMenu.classList.remove('active');
+            
+            // アクティブクラスをリセット
+            mobileMenuItems.forEach(menuItem => {
+                menuItem.classList.remove('active');
+            });
+        }
+    });
+}
