@@ -43,6 +43,25 @@
             align-items: center;
             gap: 10px;
         }
+        
+        @media (max-width: 768px) {
+            .navbar-brand {
+                font-size: 14px;
+                gap: 5px;
+            }
+            
+            .navbar-brand a {
+                font-size: 12px !important;
+            }
+            
+            .navbar-logo {
+                height: 20px;
+            }
+            
+            .navbar {
+                padding: 8px 10px;
+            }
+        }
         .navbar-logo {
             height: 30px;
             width: auto;
@@ -171,6 +190,8 @@
             border-bottom: 2px solid #ddd;
             margin-bottom: 20px;
             margin-top: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .tab-button {
             background-color: #f0f0f0;
@@ -203,6 +224,8 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            display: block;
+            overflow-x: auto;
         }
         .shift-list-table th,
         .shift-list-table td {
@@ -238,8 +261,9 @@
             margin-top: 20px;
             width: 100%;
             max-width: 100%;
-            overflow-x: hidden;
+            overflow-x: auto;
             box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
         }
         .calendar-month {
             margin-bottom: 30px;
@@ -251,6 +275,7 @@
         }
         .calendar-table {
             width: 100%;
+            min-width: 600px;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
@@ -683,6 +708,8 @@
             max-width: 500px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-header {
             padding: 20px;
@@ -1431,6 +1458,120 @@
             .calendar-table td {
                 height: 120px;
                 min-width: 80px;
+            }
+        }
+        
+        /* スマホ対応のレスポンシブデザイン */
+        @media (max-width: 768px) {
+            .container {
+                padding: 65px 5px 10px;
+            }
+            
+            .calendar-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .calendar-table {
+                min-width: 500px;
+            }
+            
+            .calendar-table td {
+                height: 100px;
+                min-width: 70px;
+                padding: 1px;
+                font-size: 10px;
+            }
+            
+            .calendar-day-number {
+                font-size: 12px;
+                margin-bottom: 2px;
+            }
+            
+            .shift-capacity-info {
+                font-size: 8px;
+            }
+            
+            .inline-time-slots {
+                gap: 1px;
+                padding: 1px;
+            }
+            
+            .inline-time-slot {
+                font-size: 7px;
+                padding: 2px 3px;
+                min-height: 16px;
+            }
+            
+            .inline-time-label {
+                font-size: 7px;
+            }
+            
+            .inline-time-slot-capacity {
+                font-size: 6px;
+                padding: 0px 2px;
+                min-width: 14px;
+            }
+            
+            .inline-apply-btn {
+                font-size: 8px;
+                padding: 2px 4px;
+            }
+            
+            .request-memo-display {
+                font-size: 9px;
+                padding: 1px;
+                min-height: 10px;
+            }
+            
+            .admin-memo-display {
+                font-size: 8px;
+                padding: 1px;
+                min-height: 8px;
+            }
+            
+            .tab-button {
+                font-size: 12px;
+                padding: 8px 12px;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            
+            .modal-header h2 {
+                font-size: 18px;
+            }
+            
+            .time-slot-checkbox {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .time-slot-label {
+                font-size: 14px;
+            }
+            
+            .shift-list-table {
+                font-size: 12px;
+            }
+            
+            .shift-list-table th,
+            .shift-list-table td {
+                padding: 8px;
+                font-size: 11px;
+            }
+            
+            .capacity-display {
+                font-size: 10px;
+            }
+            
+            .capacity-input {
+                width: 35px;
+                font-size: 10px;
+            }
+            
+            .memo-input {
+                font-size: 9px;
+                min-height: 25px;
             }
         }
         
