@@ -434,9 +434,42 @@ function displayShiftList() {
     if (allShiftsCache && allShiftsCache.length > 0) {
         window.allShiftsData = allShiftsCache;
         generateCalendar('shiftCalendarContainer');
+        
+        // シフト一覧にメモを表示するため、容量データも反映
+        if (capacityCache && capacityCache.length > 0) {
+            displayCapacityOnAdminCalendar(capacityCache);
+        }
     } else {
         container.innerHTML = '<p>シフトデータがありません。</p>';
     }
+}
+
+// 管理者用シフト一覧画面にメモを表示する関数
+function displayCapacityOnAdminCalendar(capacityData) {
+    const memoMap = {};
+    capacityData.forEach(item => {
+        if (item.date && item.date !== '') {
+            memoMap[item.date] = item.memo || '';
+        }
+    });
+    
+    // 管理者画面のメモ表示エリアを更新
+    Object.keys(memoMap).forEach(dateKey => {
+        const memoDisplayElement = document.getElementById(`admin-memo-${dateKey}`);
+        if (memoDisplayElement) {
+            const memo = memoMap[dateKey];
+            memoDisplayElement.textContent = memo;
+            
+            // メモがある場合は表示、ない場合は非表示
+            if (memo.trim()) {
+                memoDisplayElement.style.display = 'block';
+                memoDisplayElement.style.backgroundColor = '#fff3cd';
+                memoDisplayElement.style.border = '1px solid #ffeaa7';
+            } else {
+                memoDisplayElement.style.display = 'none';
+            }
+        }
+    });
 }
 
 async function loadShiftList() {
@@ -588,6 +621,12 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     capacityValue.id = `value-${dateKey}`;
                     capacityDisplay.appendChild(capacityValue);
                     
+                    // メモ表示エリアを追加
+                    const memoDisplay = document.createElement('div');
+                    memoDisplay.className = 'memo-display';
+                    memoDisplay.id = `memo-display-${dateKey}`;
+                    capacityDisplay.appendChild(memoDisplay);
+                    
                     const editIcon = document.createElement('span');
                     editIcon.className = 'edit-icon';
                     editIcon.innerHTML = '✏️';
@@ -613,6 +652,7 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     input.className = 'capacity-input';
                     input.value = getDefaultCapacity(dayOfWeek);
                     input.id = `input-${dateKey}`;
+                    input.setAttribute('data-date', dateKey);
                     inputRow.appendChild(input);
                     
                     const unitLabel = document.createElement('span');
@@ -621,6 +661,20 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     inputRow.appendChild(unitLabel);
                     
                     editMode.appendChild(inputRow);
+                    
+                    // メモ入力フィールドを追加
+                    const memoRow = document.createElement('div');
+                    memoRow.className = 'capacity-memo-row';
+                    
+                    const memoInput = document.createElement('textarea');
+                    memoInput.placeholder = 'メモ';
+                    memoInput.className = 'memo-input';
+                    memoInput.id = `memo-${dateKey}`;
+                    memoInput.setAttribute('data-date', dateKey);
+                    memoInput.rows = 2;
+                    memoRow.appendChild(memoInput);
+                    
+                    editMode.appendChild(memoRow);
                     
                     const controls = document.createElement('div');
                     controls.className = 'capacity-edit-controls';
@@ -651,13 +705,7 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     // 申請可能日かチェック
                     const isValidRequestDate = isDateAvailableForRequest(cellDate, today);
                     
-                    if (!isValidRequestDate || cellDate < today) {
-                        // 申請不可能な日は無効化
-                        cell.classList.add('past-date');
-                        cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
-                        // 内容は表示しないが、cellは作成して日付インクリメントは続ける
-                    } else {
-                    
+                    // 基本的な表示要素は常に作成
                     const requestInfo = document.createElement('div');
                     requestInfo.className = 'shift-request-info';
                     requestInfo.id = `request-${dateKey}`;
@@ -669,28 +717,49 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     capacityInfo.innerHTML = `<span class="capacity-number">${getDefaultCapacity(dayOfWeek)}</span><span class="capacity-unit">人</span>`;
                     requestInfo.appendChild(capacityInfo);
                     
-                    // 申請ボタン
-                    const defaultCapacity = getDefaultCapacity(dayOfWeek);
-                    if (defaultCapacity > 0) {
-                        const applyButton = document.createElement('button');
-                        applyButton.className = 'inline-apply-btn';
-                        applyButton.textContent = '申請';
-                        applyButton.onclick = (e) => {
-                            e.stopPropagation();
-                            openDateDetailModal(dateKey);
-                        };
-                        requestInfo.appendChild(applyButton);
+                    // メモ表示エリアを追加（常に表示）
+                    const memoDisplay = document.createElement('div');
+                    memoDisplay.className = 'request-memo-display';
+                    memoDisplay.id = `request-memo-${dateKey}`;
+                    memoDisplay.textContent = ''; // 初期は空
+                    requestInfo.appendChild(memoDisplay);
+                    
+                    if (!isValidRequestDate || cellDate < today) {
+                        // 申請不可能な日は無効化
+                        cell.classList.add('past-date');
+                        cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
+                        // 申請ボタンは表示しない
+                    } else {
+                        // 申請ボタン（申請可能日のみ）
+                        const defaultCapacity = getDefaultCapacity(dayOfWeek);
+                        if (defaultCapacity > 0) {
+                            const applyButton = document.createElement('button');
+                            applyButton.className = 'inline-apply-btn';
+                            applyButton.textContent = '申請';
+                            applyButton.onclick = (e) => {
+                                e.stopPropagation();
+                                openDateDetailModal(dateKey);
+                            };
+                            requestInfo.appendChild(applyButton);
+                        }
                     }
                     
+                    // 全ての日付でrequestInfoを追加
                     cell.appendChild(requestInfo);
                     cell.setAttribute('data-date', dateKey);
-                    }
                 } else {
                     // シフト一覧モードの場合は全員のシフト情報を表示
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
                     const shiftInfo = document.createElement('div');
                     shiftInfo.className = 'calendar-shift-info';
                     shiftInfo.id = `shift-${dateKey}`;
+                    
+                    // メモ表示エリアを追加
+                    const memoDisplay = document.createElement('div');
+                    memoDisplay.className = 'admin-memo-display';
+                    memoDisplay.id = `admin-memo-${dateKey}`;
+                    memoDisplay.textContent = ''; // 初期は空
+                    shiftInfo.appendChild(memoDisplay);
                     
                     // 全員のシフトデータから該当日付のデータを取得
                     displayShiftsForDate(shiftInfo, dateKey);
@@ -1224,6 +1293,26 @@ function toggleEditMode(dateKey) {
         const currentValue = parseInt(valueElement.textContent) || 0;
         inputElement.value = currentValue;
         
+        // メモの現在値もセット
+        const memoDisplayElement = document.getElementById(`memo-display-${dateKey}`);
+        const memoElement = document.getElementById(`memo-${dateKey}`);
+        if (memoDisplayElement && memoElement) {
+            memoElement.value = memoDisplayElement.textContent || '';
+        }
+        
+        // ボタンの状態を確実に有効化
+        const saveBtn = document.querySelector(`#edit-${dateKey} .save-single-btn`);
+        const cancelBtn = document.querySelector(`#edit-${dateKey} .cancel-edit-btn`);
+        
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '✅';
+            saveBtn.title = '保存';
+        }
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+        }
+        
         // 表示モードを非表示、編集モードを表示
         displayElement.style.display = 'none';
         editElement.style.display = 'flex';
@@ -1242,6 +1331,19 @@ function cancelEdit(dateKey) {
         // 編集モードを非表示、表示モードを表示
         editElement.style.display = 'none';
         displayElement.style.display = 'flex';
+        
+        // ボタンの状態をリセット
+        const saveBtn = document.querySelector(`#edit-${dateKey} .save-single-btn`);
+        const cancelBtn = document.querySelector(`#edit-${dateKey} .cancel-edit-btn`);
+        
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '✅';
+            saveBtn.title = '保存';
+        }
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+        }
     }
 }
 
@@ -1262,6 +1364,10 @@ async function saveSingleCapacity(dateKey) {
     
     const newCapacity = parseInt(inputElement.value) || 0;
     
+    // メモフィールドの値も取得
+    const memoElement = document.getElementById(`memo-${dateKey}`);
+    const memo = memoElement ? memoElement.value.trim() : '';
+    
     // ボタンを無効化
     if (saveBtn) {
         saveBtn.disabled = true;
@@ -1277,6 +1383,7 @@ async function saveSingleCapacity(dateKey) {
         const capacityData = [{
             date: dateKey,
             capacity: newCapacity,
+            memo: memo,
             userId: currentUser.sub,
             userName: currentUser.name,
             timestamp: new Date().toISOString()
@@ -1286,6 +1393,13 @@ async function saveSingleCapacity(dateKey) {
         
         // 表示を更新
         valueElement.textContent = `${newCapacity}人`;
+        
+        // メモ表示も更新
+        const memoElement = document.getElementById(`memo-${dateKey}`);
+        const memoDisplayElement = document.getElementById(`memo-display-${dateKey}`);
+        if (memoElement && memoDisplayElement) {
+            memoDisplayElement.textContent = memoElement.value.trim();
+        }
         
         // 編集モードを終了
         cancelEdit(dateKey);
@@ -1307,17 +1421,15 @@ async function saveSingleCapacity(dateKey) {
 }
 
 function applyCapacityData(capacityData) {
-    console.log('適用するデータ:', capacityData);
-    
     // データを日付をキーとするマップに変換
     const capacityMap = {};
+    const memoMap = {};
     capacityData.forEach(item => {
         if (item.date && item.date !== '') {
             capacityMap[item.date] = item.capacity;
+            memoMap[item.date] = item.memo || '';
         }
     });
-    
-    console.log('日付マップ:', capacityMap);
     
     // 各表示要素に値を設定
     let appliedCount = 0;
@@ -1328,14 +1440,26 @@ function applyCapacityData(capacityData) {
         
         if (valueElement && inputElement) {
             const capacity = capacityMap[dateKey];
+            const memo = memoMap[dateKey] || '';
             valueElement.textContent = `${capacity}人`;
             inputElement.value = capacity;
+            
+            // メモフィールドも更新
+            const memoElement = document.getElementById(`memo-${dateKey}`);
+            if (memoElement) {
+                memoElement.value = memo;
+            }
+            
+            // メモ表示エリアも更新
+            const memoDisplayElement = document.getElementById(`memo-display-${dateKey}`);
+            if (memoDisplayElement) {
+                memoDisplayElement.textContent = memo;
+            }
+            
             appliedCount++;
-            console.log(`${dateKey}: ${capacity}人を設定`);
         }
     });
     
-    console.log(`保存済みの人数設定を反映しました（${appliedCount}件）`);
 }
 
 async function saveAllCapacitySettings() {
@@ -1379,10 +1503,15 @@ function collectCapacityData() {
         const date = input.getAttribute('data-date');
         const capacity = parseInt(input.value) || 0;
         
+        // メモフィールドの値も取得
+        const memoElement = document.getElementById(`memo-${date}`);
+        const memo = memoElement ? memoElement.value.trim() : '';
+        
         if (date) {
             data.push({
                 date: date,
                 capacity: capacity,
+                memo: memo,
                 userId: currentUser.sub,
                 userName: currentUser.name,
                 timestamp: new Date().toISOString()
@@ -1395,7 +1524,8 @@ function collectCapacityData() {
 
 async function saveCapacityToSpreadsheet(capacityData) {
     try {
-        await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1407,13 +1537,15 @@ async function saveCapacityToSpreadsheet(capacityData) {
             })
         });
         
-        console.log('人数設定をスプレッドシートに保存しました');
         
-        // キャッシュをクリアして再読み込み
-        if (isAdminUser) {
-            capacityCache = null;
-            await loadCapacityToCache();
-        }
+        // no-corsモードでは成功かどうか判断できないため、少し待ってからキャッシュを更新
+        setTimeout(async () => {
+            if (isAdminUser) {
+                capacityCache = null;
+                await loadCapacityToCache();
+            }
+        }, 2000);
+        
     } catch (error) {
         console.error('スプレッドシートへの保存に失敗しました:', error);
         throw error;
@@ -1498,13 +1630,22 @@ function jsonpRequest(url, params = {}) {
         };
         
         // タイムアウト処理
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
             if (window[callbackName]) {
                 delete window[callbackName];
-                document.head.removeChild(script);
+                if (script.parentNode) {
+                    document.head.removeChild(script);
+                }
                 reject(new Error('JSONP request timeout'));
             }
-        }, 10000);
+        }, 15000);
+        
+        // 成功時のタイムアウトクリア
+        const originalCallback = window[callbackName];
+        window[callbackName] = function(data) {
+            clearTimeout(timeoutId);
+            originalCallback(data);
+        };
         
         document.head.appendChild(script);
     });
@@ -2037,9 +2178,11 @@ function displayCapacityOnCalendar(capacityData) {
 function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
     // 人数設定データを日付をキーとするマップに変換
     const capacityMap = {};
+    const memoMap = {};
     capacityData.forEach(item => {
         if (item.date && item.date !== '') {
             capacityMap[item.date] = item.capacity;
+            memoMap[item.date] = item.memo || '';
         }
     });
     
@@ -2061,6 +2204,22 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
                 
                 // その日に設定されているシフト人数のみを表示
                 capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+                
+                // メモ表示エリアも更新
+                const memoDisplayElement = document.getElementById(`request-memo-${dateKey}`);
+                if (memoDisplayElement) {
+                    const memo = memoMap[dateKey] || '';
+                    memoDisplayElement.textContent = memo;
+                    
+                    // メモがある場合は表示、ない場合は非表示
+                    if (memo.trim()) {
+                        memoDisplayElement.style.display = 'block';
+                        memoDisplayElement.style.backgroundColor = '#fff3cd';
+                        memoDisplayElement.style.border = '1px solid #ffeaa7';
+                    } else {
+                        memoDisplayElement.style.display = 'none';
+                    }
+                }
                 
                 // 申請ボタンの表示/非表示を更新
                 const requestInfo = document.getElementById(`request-${dateKey}`);

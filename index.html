@@ -212,6 +212,25 @@
             align-items: center;
             gap: 10px;
         }
+        
+        @media (max-width: 768px) {
+            .navbar-brand {
+                font-size: 14px;
+                gap: 5px;
+            }
+            
+            .navbar-brand a {
+                font-size: 12px !important;
+            }
+            
+            .navbar-logo {
+                height: 20px;
+            }
+            
+            .navbar {
+                padding: 8px 10px;
+            }
+        }
         .navbar-logo {
             height: 30px;
             width: auto;
@@ -340,6 +359,8 @@
             border-bottom: 2px solid #ddd;
             margin-bottom: 20px;
             margin-top: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .tab-button {
             background-color: #f0f0f0;
@@ -372,6 +393,8 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            display: block;
+            overflow-x: auto;
         }
         .shift-list-table th,
         .shift-list-table td {
@@ -407,8 +430,9 @@
             margin-top: 20px;
             width: 100%;
             max-width: 100%;
-            overflow-x: hidden;
+            overflow-x: auto;
             box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
         }
         .calendar-month {
             margin-bottom: 30px;
@@ -420,6 +444,7 @@
         }
         .calendar-table {
             width: 100%;
+            min-width: 600px;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
@@ -710,6 +735,55 @@
             align-items: center;
             gap: 2px;
         }
+        .capacity-memo-row {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            width: 100%;
+        }
+        .memo-input {
+            width: 100%;
+            padding: 2px 4px;
+            font-size: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            resize: vertical;
+            min-height: 30px;
+        }
+        .memo-display {
+            font-size: 9px;
+            color: #666;
+            text-align: center;
+            margin-top: 2px;
+            word-break: break-word;
+        }
+        .request-memo-display {
+            font-size: 12px;
+            color: #555;
+            text-align: center;
+            margin: 2px 0;
+            word-break: break-word;
+            width: 100%;
+            background-color: #fff3cd;
+            border-radius: 2px;
+            padding: 3px;
+            min-height: 14px;
+            border: 1px solid #ffeaa7;
+            font-weight: 500;
+        }
+        .admin-memo-display {
+            font-size: 11px;
+            color: #555;
+            text-align: center;
+            margin: 2px 0;
+            word-break: break-word;
+            background-color: #fff3cd;
+            border-radius: 2px;
+            padding: 3px;
+            min-height: 12px;
+            border: 1px solid #ffeaa7;
+            font-weight: 500;
+        }
         .capacity-edit-controls {
             display: flex;
             gap: 3px;
@@ -803,6 +877,8 @@
             max-width: 500px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .modal-header {
             padding: 20px;
@@ -1554,6 +1630,120 @@
             }
         }
         
+        /* スマホ対応のレスポンシブデザイン */
+        @media (max-width: 768px) {
+            .container {
+                padding: 65px 5px 10px;
+            }
+            
+            .calendar-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .calendar-table {
+                min-width: 500px;
+            }
+            
+            .calendar-table td {
+                height: 100px;
+                min-width: 70px;
+                padding: 1px;
+                font-size: 10px;
+            }
+            
+            .calendar-day-number {
+                font-size: 12px;
+                margin-bottom: 2px;
+            }
+            
+            .shift-capacity-info {
+                font-size: 8px;
+            }
+            
+            .inline-time-slots {
+                gap: 1px;
+                padding: 1px;
+            }
+            
+            .inline-time-slot {
+                font-size: 7px;
+                padding: 2px 3px;
+                min-height: 16px;
+            }
+            
+            .inline-time-label {
+                font-size: 7px;
+            }
+            
+            .inline-time-slot-capacity {
+                font-size: 6px;
+                padding: 0px 2px;
+                min-width: 14px;
+            }
+            
+            .inline-apply-btn {
+                font-size: 8px;
+                padding: 2px 4px;
+            }
+            
+            .request-memo-display {
+                font-size: 9px;
+                padding: 1px;
+                min-height: 10px;
+            }
+            
+            .admin-memo-display {
+                font-size: 8px;
+                padding: 1px;
+                min-height: 8px;
+            }
+            
+            .tab-button {
+                font-size: 12px;
+                padding: 8px 12px;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            
+            .modal-header h2 {
+                font-size: 18px;
+            }
+            
+            .time-slot-checkbox {
+                width: 16px;
+                height: 16px;
+            }
+            
+            .time-slot-label {
+                font-size: 14px;
+            }
+            
+            .shift-list-table {
+                font-size: 12px;
+            }
+            
+            .shift-list-table th,
+            .shift-list-table td {
+                padding: 8px;
+                font-size: 11px;
+            }
+            
+            .capacity-display {
+                font-size: 10px;
+            }
+            
+            .capacity-input {
+                width: 35px;
+                font-size: 10px;
+            }
+            
+            .memo-input {
+                font-size: 9px;
+                min-height: 25px;
+            }
+        }
+        
         .shift-request-info {
             display: flex;
             flex-direction: column;
@@ -1658,7 +1848,7 @@
         <div id="appContent" class="hidden">
             <div class="tabs">
                 <button class="tab-button active" data-tab="shift-list" style="display: none;">シフト一覧</button>
-                <button class="tab-button" data-tab="capacity-settings" style="display: none;">シフト人数設定</button>
+                <button class="tab-button" data-tab="capacity-settings" style="display: none;">シフト人数&メモ設定</button>
                 <button class="tab-button" data-tab="shift-request" style="display: none;">シフト申請</button>
                 <button class="tab-button" data-tab="my-shifts" style="display: none;">自分のシフト一覧</button>
                 <button class="tab-button" data-tab="settings" style="display: none;">設定</button>
