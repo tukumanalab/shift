@@ -566,7 +566,7 @@ function loadUserShifts(spreadsheet, userId) {
       return {
         registrationDate: row[0], // A列: 登録日時
         userId: row[1],          // B列: ユーザーID
-        userName: displayName,   // 表示名（ユーザータブから取得）
+        userName: row[4] || displayName,   // E列: 名前（なければ表示名）
         userEmail: userProfile.email || '', // メール（ユーザータブから取得）
         shiftDate: dateStr,      // C列: シフト日付
         timeSlot: row[3],        // D列: 時間帯
@@ -951,12 +951,13 @@ function processSingleShiftRequest(spreadsheet, data) {
       }
     }
     
-    // シフトデータを追加（ユーザーIDのみ保存）
+    // シフトデータを追加（ユーザーIDと名前を保存）
     shiftSheet.appendRow([
       new Date(),
       data.userId,
       data.date,
-      data.time
+      data.time,
+      data.userName  // E列: 名前
     ]);
     
     // Google Calendarに予定を追加（表示名を使用）
@@ -1039,11 +1040,12 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
         new Date(),
         userId,
         date,
-        timeSlot
+        timeSlot,
+        userName  // E列: 名前
       ]);
       
       // 一括でデータを追加（パフォーマンス向上）
-      const range = shiftSheet.getRange(shiftSheet.getLastRow() + 1, 1, rowsToAdd.length, 4);
+      const range = shiftSheet.getRange(shiftSheet.getLastRow() + 1, 1, rowsToAdd.length, 5);
       range.setValues(rowsToAdd);
       
       results.processed = validTimeSlots;
