@@ -2188,7 +2188,12 @@ function displayCapacityOnCalendar(capacityData) {
         const capacityElement = document.getElementById(`capacity-${dateKey}`);
         if (capacityElement) {
             const capacity = capacityMap[dateKey];
-            capacityElement.innerHTML = `<span class="capacity-number">${capacity}</span><span class="capacity-unit">人</span>`;
+            // 0人の場合は表示しない
+            if (capacity > 0) {
+                capacityElement.innerHTML = `<span class="capacity-number">${capacity}</span><span class="capacity-unit">人</span>`;
+            } else {
+                capacityElement.innerHTML = '';
+            }
         }
     });
 }
@@ -2220,8 +2225,12 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
                     maxCapacityForDate = getDefaultCapacity(dayOfWeek);
                 }
                 
-                // その日に設定されているシフト人数のみを表示
-                capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+                // その日に設定されているシフト人数のみを表示（0人の場合は表示しない）
+                if (maxCapacityForDate > 0) {
+                    capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+                } else {
+                    capacityElement.innerHTML = '';
+                }
                 
                 // メモ表示エリアも更新
                 const memoDisplayElement = document.getElementById(`request-memo-${dateKey}`);
@@ -2888,8 +2897,12 @@ function updateSingleDateCapacity(dateKey, capacityData) {
             maxCapacityForDate = getDefaultCapacity(dayOfWeek);
         }
         
-        // その日に設定されているシフト人数のみを表示
-        capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+        // その日に設定されているシフト人数のみを表示（0人の場合は表示しない）
+        if (maxCapacityForDate > 0) {
+            capacityElement.innerHTML = `<span class="capacity-number">${maxCapacityForDate}</span><span class="capacity-unit">人</span>`;
+        } else {
+            capacityElement.innerHTML = '';
+        }
         
         // 申請ボタンの表示/非表示を更新
         const requestInfo = document.getElementById(`request-${dateKey}`);
