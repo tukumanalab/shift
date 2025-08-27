@@ -708,53 +708,52 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     // 募集人数をチェック
                     const defaultCapacity = getDefaultCapacity(dayOfWeek);
                     
-                    // 募集人数が0の場合は何も表示しない
-                    if (defaultCapacity === 0) {
-                        // 空のセルを作成（何も表示しない）
-                        cell.setAttribute('data-date', dateKey);
-                    } else {
-                        // 基本的な表示要素を作成
-                        const requestInfo = document.createElement('div');
-                        requestInfo.className = 'shift-request-info';
-                        requestInfo.id = `request-${dateKey}`;
-                        
-                        // 必要人数表示
-                        const capacityInfo = document.createElement('div');
-                        capacityInfo.className = 'shift-capacity-info';
-                        capacityInfo.id = `capacity-${dateKey}`;
+                    // 土日でも必要なHTML要素は作成する（後で人数設定データで更新される可能性があるため）
+                    // 基本的な表示要素を作成
+                    const requestInfo = document.createElement('div');
+                    requestInfo.className = 'shift-request-info';
+                    requestInfo.id = `request-${dateKey}`;
+                    
+                    // 必要人数表示
+                    const capacityInfo = document.createElement('div');
+                    capacityInfo.className = 'shift-capacity-info';
+                    capacityInfo.id = `capacity-${dateKey}`;
+                    
+                    // デフォルトで0人の場合は初期状態では何も表示しない
+                    if (defaultCapacity > 0) {
                         capacityInfo.innerHTML = `<span class="capacity-number">${defaultCapacity}</span><span class="capacity-unit">人</span>`;
-                        requestInfo.appendChild(capacityInfo);
-                        
-                        // メモ表示エリアを追加
-                        const memoDisplay = document.createElement('div');
-                        memoDisplay.className = 'request-memo-display';
-                        memoDisplay.id = `request-memo-${dateKey}`;
-                        memoDisplay.textContent = ''; // 初期は空
-                        requestInfo.appendChild(memoDisplay);
-                        
-                        if (!isValidRequestDate || cellDate < today) {
-                            // 申請不可能な日は無効化
-                            cell.classList.add('past-date');
-                            cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
-                            // 申請ボタンは表示しない
-                        } else {
-                            // 申請ボタン（申請可能日のみ）
-                            if (defaultCapacity > 0) {
-                                const applyButton = document.createElement('button');
-                                applyButton.className = 'inline-apply-btn';
-                                applyButton.textContent = '申請';
-                                applyButton.onclick = (e) => {
-                                    e.stopPropagation();
-                                    openDateDetailModal(dateKey);
-                                };
-                                requestInfo.appendChild(applyButton);
-                            }
-                        }
-                        
-                        // requestInfoを追加
-                        cell.appendChild(requestInfo);
-                        cell.setAttribute('data-date', dateKey);
                     }
+                    requestInfo.appendChild(capacityInfo);
+                    
+                    // メモ表示エリアを追加
+                    const memoDisplay = document.createElement('div');
+                    memoDisplay.className = 'request-memo-display';
+                    memoDisplay.id = `request-memo-${dateKey}`;
+                    memoDisplay.textContent = ''; // 初期は空
+                    requestInfo.appendChild(memoDisplay);
+                    
+                    if (!isValidRequestDate || cellDate < today) {
+                        // 申請不可能な日は無効化
+                        cell.classList.add('past-date');
+                        cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
+                        // 申請ボタンは表示しない
+                    } else {
+                        // 申請ボタン（申請可能日のみ）
+                        if (defaultCapacity > 0) {
+                            const applyButton = document.createElement('button');
+                            applyButton.className = 'inline-apply-btn';
+                            applyButton.textContent = '申請';
+                            applyButton.onclick = (e) => {
+                                e.stopPropagation();
+                                openDateDetailModal(dateKey);
+                            };
+                            requestInfo.appendChild(applyButton);
+                        }
+                    }
+                    
+                    // requestInfoを追加
+                    cell.appendChild(requestInfo);
+                    cell.setAttribute('data-date', dateKey);
                 } else {
                     // シフト一覧モードの場合は全員のシフト情報を表示
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
@@ -2252,8 +2251,15 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
                 const requestInfo = document.getElementById(`request-${dateKey}`);
                 if (requestInfo) {
                     const existingButton = requestInfo.querySelector('.inline-apply-btn');
-                    if (maxCapacityForDate > 0 && !existingButton) {
-                        // ボタンがなくて容量がある場合は追加
+                    
+                    // 申請可能日かチェック
+                    const cellDate = new Date(dateKey);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const isValidRequestDate = isDateAvailableForRequest(cellDate, today);
+                    
+                    if (maxCapacityForDate > 0 && !existingButton && isValidRequestDate && cellDate >= today) {
+                        // ボタンがなくて容量があり、申請可能日の場合は追加
                         const applyButton = document.createElement('button');
                         applyButton.className = 'inline-apply-btn';
                         applyButton.textContent = '申請';
@@ -2262,8 +2268,8 @@ function displayCapacityWithCountsOnCalendar(capacityData, shiftCounts = {}) {
                             openDateDetailModal(dateKey);
                         };
                         requestInfo.appendChild(applyButton);
-                    } else if (maxCapacityForDate === 0 && existingButton) {
-                        // ボタンがあって容量がない場合は削除
+                    } else if ((maxCapacityForDate === 0 || !isValidRequestDate || cellDate < today) && existingButton) {
+                        // ボタンがあって、容量がないか申請不可能日の場合は削除
                         existingButton.remove();
                     }
                 }
