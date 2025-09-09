@@ -86,6 +86,8 @@ function decodeJwtResponse(token) {
 
 async function showProfile(profileData) {
     currentUser = profileData;
+    // グローバルに保存（特別シフト機能で使用）
+    window.currentUser = profileData;
     
     const profileInfo = document.getElementById('profileInfo');
     const loginPrompt = document.getElementById('loginPrompt');
@@ -136,7 +138,8 @@ async function showProfile(profileData) {
         await Promise.all([
             loadAllShiftsToCache(),  // 全員のシフトデータ
             loadCapacityToCache(),   // 人数設定データ
-            loadUserProfile()        // ユーザープロフィール（ニックネーム、本名）
+            loadUserProfile(),       // ユーザープロフィール（ニックネーム、本名）
+            loadSpecialShifts()      // 特別シフトデータ
         ]);
         // キャッシュを使って初期表示
         displayShiftList();
@@ -145,7 +148,8 @@ async function showProfile(profileData) {
         await Promise.all([
             loadUserShiftsData(),     // 自分のシフトデータ
             loadCapacityToCache(),    // 人数設定データ（シフト申請用）
-            loadUserProfile()         // ユーザープロフィール（ニックネーム、本名）
+            loadUserProfile(),        // ユーザープロフィール（ニックネーム、本名）
+            loadSpecialShifts()       // 特別シフトデータ
         ]);
         // キャッシュを使って初期表示
         displayMyShifts(document.getElementById('myShiftsCalendarContainer'), myShiftsCache);
@@ -634,6 +638,17 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     editIcon.onclick = () => toggleEditMode(dateKey);
                     capacityDisplay.appendChild(editIcon);
                     
+                    // シフト追加リンクを追加
+                    const addShiftLink = document.createElement('span');
+                    addShiftLink.className = 'add-shift-link';
+                    addShiftLink.innerHTML = '➕';
+                    addShiftLink.title = 'シフト追加';
+                    addShiftLink.onclick = (e) => {
+                        e.stopPropagation();
+                        openSpecialShiftModal(dateKey);
+                    };
+                    capacityDisplay.appendChild(addShiftLink);
+                    
                     cell.appendChild(capacityDisplay);
                     
                     // 編集モード（初期は非表示）
@@ -695,6 +710,15 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     
                     editMode.appendChild(controls);
                     cell.appendChild(editMode);
+                    
+                    // 特別シフト表示エリア
+                    const specialShiftDisplay = document.createElement('div');
+                    specialShiftDisplay.className = 'special-shift-display';
+                    specialShiftDisplay.id = `special-shifts-${dateKey}`;
+                    cell.appendChild(specialShiftDisplay);
+                    
+                    // 特別シフトを表示
+                    displaySpecialShiftsForDate(dateKey, specialShiftDisplay);
                 } else if (isRequestMode) {
                     // シフト申請モードの場合は人数表示と申請ボタン
                     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
@@ -1213,6 +1237,10 @@ async function loadCapacitySettings() {
         if (capacityCache.length > 0) {
             applyCapacityData(capacityCache);
         }
+        // 特別シフト表示を更新
+        setTimeout(() => {
+            refreshAllSpecialShiftsDisplay();
+        }, 100);
         return;
     }
     
@@ -1239,6 +1267,11 @@ async function loadCapacitySettings() {
         // ローディングアイコンを非表示にしてカレンダーを表示
         loadingContainer.style.display = 'none';
         calendarContainer.style.display = 'block';
+        
+        // カレンダー表示後に特別シフト表示を更新
+        setTimeout(() => {
+            refreshAllSpecialShiftsDisplay();
+        }, 100);
     }
 }
 
@@ -3034,5 +3067,392 @@ function setupMobileMenu() {
                 menuItem.classList.remove('active');
             });
         }
+    });
+}
+
+// 特別シフト関連の関数
+let specialShifts = [];
+
+// 特別シフトモーダルを開く
+function openSpecialShiftModal(dateKey) {
+    const modal = document.getElementById('specialShiftModal');
+    const dateDisplay = document.getElementById('specialShiftDate');
+    const errorDiv = document.getElementById('specialShiftError');
+    
+    // 日付をテキストで表示
+    const formattedDate = formatDateForDisplay(dateKey);
+    dateDisplay.textContent = formattedDate;
+    dateDisplay.setAttribute('data-date', dateKey);
+    
+    // エラーメッセージを初期化
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+    
+    // 時刻のselect要素を初期化
+    initializeTimeSelects();
+    
+    // 送信ボタンを有効化
+    const submitBtn = document.querySelector('#specialShiftModal .submit-btn');
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '追加';
+    }
+    
+    modal.style.display = 'flex';
+}
+
+// 日付を表示用にフォーマットする関数
+function formatDateForDisplay(dateKey) {
+    const date = new Date(dateKey + 'T00:00:00');
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    const weekday = weekdays[date.getDay()];
+    
+    return `${year}年${month}月${day}日（${weekday}）`;
+}
+
+// 時刻のselect要素を初期化する関数
+function initializeTimeSelects() {
+    const startTimeSelect = document.getElementById('specialShiftStartTime');
+    const endTimeSelect = document.getElementById('specialShiftEndTime');
+    
+    // 時間帯を生成（7:00から23:30まで）
+    const timeOptions = generateTimeOptions();
+    
+    // 開始時刻のオプションを設定
+    startTimeSelect.innerHTML = '<option value="">選択してください</option>';
+    timeOptions.forEach(time => {
+        const option = document.createElement('option');
+        option.value = time;
+        option.textContent = time;
+        startTimeSelect.appendChild(option);
+    });
+    
+    // 終了時刻のオプションを初期化
+    endTimeSelect.innerHTML = '<option value="">選択してください</option>';
+    endTimeSelect.disabled = true;
+    
+    // 開始時刻が変更された時の処理
+    startTimeSelect.addEventListener('change', function() {
+        updateEndTimeOptions(this.value);
+    });
+}
+
+// 時刻オプションを生成する関数（00分と30分のみ）
+function generateTimeOptions() {
+    const times = [];
+    for (let hour = 7; hour <= 23; hour++) {
+        times.push(`${String(hour).padStart(2, '0')}:00`);
+        if (hour < 23) { // 23:30まで
+            times.push(`${String(hour).padStart(2, '0')}:30`);
+        }
+    }
+    return times;
+}
+
+// 終了時刻のオプションを更新する関数
+function updateEndTimeOptions(startTime) {
+    const endTimeSelect = document.getElementById('specialShiftEndTime');
+    
+    if (!startTime) {
+        endTimeSelect.innerHTML = '<option value="">選択してください</option>';
+        endTimeSelect.disabled = true;
+        return;
+    }
+    
+    // 開始時刻より後の時刻のみを選択肢に追加
+    const timeOptions = generateTimeOptions();
+    const startIndex = timeOptions.indexOf(startTime);
+    const validEndTimes = timeOptions.slice(startIndex + 1);
+    
+    endTimeSelect.innerHTML = '<option value="">選択してください</option>';
+    validEndTimes.forEach(time => {
+        const option = document.createElement('option');
+        option.value = time;
+        option.textContent = time;
+        endTimeSelect.appendChild(option);
+    });
+    
+    endTimeSelect.disabled = false;
+}
+
+// 特別シフトモーダルを閉じる
+function closeSpecialShiftModal() {
+    const modal = document.getElementById('specialShiftModal');
+    modal.style.display = 'none';
+}
+
+// 特別シフトを送信
+async function submitSpecialShift() {
+    const errorDiv = document.getElementById('specialShiftError');
+    const submitBtn = document.querySelector('#specialShiftModal .submit-btn');
+    const cancelBtn = document.querySelector('#specialShiftModal .cancel-btn');
+    
+    // フォームデータを取得
+    const dateDisplay = document.getElementById('specialShiftDate');
+    const date = dateDisplay.getAttribute('data-date');
+    const startTime = document.getElementById('specialShiftStartTime').value;
+    const endTime = document.getElementById('specialShiftEndTime').value;
+    
+    // バリデーション
+    if (!date || !startTime || !endTime) {
+        showSpecialShiftError('すべての項目を選択してください。');
+        return;
+    }
+    
+    // ボタンを無効化
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '送信中...';
+    }
+    if (cancelBtn) {
+        cancelBtn.disabled = true;
+    }
+    
+    try {
+        const userData = getCurrentUserData();
+        if (!userData) {
+            showSpecialShiftError('ユーザー情報が取得できません。ログインし直してください。');
+            // エラー時はボタンを復活
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '追加';
+            }
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+            }
+            return;
+        }
+        
+        const requestData = {
+            type: 'addSpecialShift',
+            date: date,
+            startTime: startTime,
+            endTime: endTime,
+            updaterId: userData.sub,
+            updaterName: userData.name || userData.email
+        };
+        
+        await fetch(GOOGLE_APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            mode: 'no-cors',
+            body: JSON.stringify(requestData)
+        });
+        
+        // no-corsモードでは成功かどうか判断できないため、少し待ってから処理を続ける
+        setTimeout(async () => {
+            try {
+                alert('特別シフトが追加されました！');
+                closeSpecialShiftModal();
+                
+                // 特別シフトデータを再読み込み
+                await loadSpecialShifts();
+                
+                // 特別シフト表示を更新
+                refreshAllSpecialShiftsDisplay();
+            } catch (error) {
+                console.error('特別シフト追加後の処理エラー:', error);
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('特別シフト追加エラー:', error);
+        showSpecialShiftError('特別シフトの追加に失敗しました。ネットワークエラーが発生している可能性があります。');
+        
+        // エラー時はボタンを復活
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '追加';
+        }
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+        }
+    }
+}
+
+// 特別シフトエラーメッセージを表示
+function showSpecialShiftError(message) {
+    const errorDiv = document.getElementById('specialShiftError');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+// 特別シフトデータを読み込み
+async function loadSpecialShifts() {
+    console.log('=== loadSpecialShifts DEBUG ===');
+    console.log('Starting to load special shifts...');
+    
+    try {
+        const result = await jsonpRequest(GOOGLE_APPS_SCRIPT_URL, { type: 'loadSpecialShifts' });
+        console.log('loadSpecialShifts API response:', result);
+        
+        if (result.success) {
+            specialShifts = result.data || [];
+            console.log('✅ 特別シフトデータを読み込みました:', specialShifts.length + '件');
+            console.log('特別シフトの詳細:', specialShifts);
+        } else {
+            console.error('❌ 特別シフトデータの読み込みに失敗しました:', result.error);
+        }
+        
+    } catch (error) {
+        console.error('❌ 特別シフト読み込みエラー:', error);
+    }
+}
+
+// 現在のユーザーデータを取得
+function getCurrentUserData() {
+    // グローバル変数から取得（ログイン時に設定される）
+    if (window.currentUser) {
+        return window.currentUser;
+    }
+    
+    // セッションストレージから取得を試みる
+    try {
+        const userData = sessionStorage.getItem('currentUser');
+        if (userData) {
+            return JSON.parse(userData);
+        }
+    } catch (error) {
+        console.error('ユーザーデータの取得に失敗:', error);
+    }
+    
+    return null;
+}
+
+// 特定の日付の特別シフトを表示する関数
+function displaySpecialShiftsForDate(dateKey, container) {
+    console.log('=== displaySpecialShiftsForDate DEBUG ===');
+    console.log('dateKey:', dateKey);
+    console.log('specialShifts array:', specialShifts);
+    console.log('specialShifts.length:', specialShifts.length);
+    
+    // 該当する日付の特別シフトを取得
+    const shiftsForDate = specialShifts.filter(shift => {
+        // 日付文字列を YYYY-MM-DD 形式に変換して比較
+        let shiftDate = shift.date;
+        if (typeof shiftDate === 'string' && shiftDate.includes('T')) {
+            // ISO形式の場合は日付部分のみを抽出
+            shiftDate = shiftDate.split('T')[0];
+        } else if (shiftDate instanceof Date) {
+            // Dateオブジェクトの場合はYYYY-MM-DD形式に変換
+            const year = shiftDate.getFullYear();
+            const month = String(shiftDate.getMonth() + 1).padStart(2, '0');
+            const day = String(shiftDate.getDate()).padStart(2, '0');
+            shiftDate = `${year}-${month}-${day}`;
+        }
+        console.log('Comparing:', shiftDate, 'vs', dateKey);
+        return shiftDate === dateKey;
+    });
+    console.log('shiftsForDate for', dateKey, ':', shiftsForDate);
+    
+    // コンテナをクリア
+    container.innerHTML = '';
+    
+    if (shiftsForDate.length === 0) {
+        console.log('No special shifts found for', dateKey);
+        return;
+    }
+    
+    // 時刻順でソート
+    shiftsForDate.sort((a, b) => {
+        return a.startTime.localeCompare(b.startTime);
+    });
+    
+    // 各特別シフトを表示
+    shiftsForDate.forEach(shift => {
+        const shiftItem = document.createElement('div');
+        shiftItem.className = 'special-shift-item';
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'special-shift-time';
+        timeSpan.textContent = `${shift.startTime}-${shift.endTime}`;
+        shiftItem.appendChild(timeSpan);
+        
+        // 削除ボタン（管理者のみ表示）
+        if (isAdminUser) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'special-shift-delete';
+            deleteBtn.innerHTML = '×';
+            deleteBtn.title = '削除';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                // 日付を YYYY-MM-DD 形式に正規化
+                let normalizedDate = shift.date;
+                if (typeof normalizedDate === 'string' && normalizedDate.includes('T')) {
+                    normalizedDate = normalizedDate.split('T')[0];
+                } else if (normalizedDate instanceof Date) {
+                    const year = normalizedDate.getFullYear();
+                    const month = String(normalizedDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(normalizedDate.getDate()).padStart(2, '0');
+                    normalizedDate = `${year}-${month}-${day}`;
+                }
+                deleteSpecialShift(normalizedDate, shift.startTime, shift.endTime);
+            };
+            shiftItem.appendChild(deleteBtn);
+        }
+        
+        container.appendChild(shiftItem);
+    });
+}
+
+// 特別シフトを削除する関数
+async function deleteSpecialShift(date, startTime, endTime) {
+    if (!confirm(`${date} ${startTime}-${endTime} の特別シフトを削除しますか？`)) {
+        return;
+    }
+    
+    try {
+        const requestData = {
+            type: 'deleteSpecialShift',
+            date: date,
+            startTime: startTime,
+            endTime: endTime
+        };
+        
+        await fetch(GOOGLE_APPS_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            mode: 'no-cors',
+            body: JSON.stringify(requestData)
+        });
+        
+        // 削除後、少し待ってから特別シフトデータを再読み込み
+        setTimeout(async () => {
+            try {
+                await loadSpecialShifts();
+                
+                // 特別シフト表示を更新
+                refreshAllSpecialShiftsDisplay();
+                
+                alert('特別シフトを削除しました！');
+            } catch (error) {
+                console.error('特別シフト削除後の処理エラー:', error);
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('特別シフト削除エラー:', error);
+        alert('特別シフトの削除に失敗しました。');
+    }
+}
+
+// 全ての日付の特別シフト表示を更新する関数
+function refreshAllSpecialShiftsDisplay() {
+    console.log('=== refreshAllSpecialShiftsDisplay DEBUG ===');
+    // 全ての特別シフト表示エリアを更新
+    const allSpecialShiftDisplays = document.querySelectorAll('.special-shift-display');
+    console.log('Found special shift display elements:', allSpecialShiftDisplays.length);
+    
+    allSpecialShiftDisplays.forEach(display => {
+        const dateKey = display.id.replace('special-shifts-', '');
+        console.log('Processing display for dateKey:', dateKey);
+        displaySpecialShiftsForDate(dateKey, display);
     });
 }

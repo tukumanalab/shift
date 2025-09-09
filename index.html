@@ -728,6 +728,60 @@
         .edit-icon:hover {
             background-color: #f0f0f0;
         }
+        
+        .add-shift-link {
+            cursor: pointer;
+            font-size: 12px;
+            color: #28a745;
+            padding: 2px;
+            border-radius: 3px;
+            margin-left: 4px;
+        }
+        
+        .add-shift-link:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .special-shift-display {
+            margin-top: 8px;
+            font-size: 11px;
+        }
+        
+        .special-shift-item {
+            background-color: #e8f5e8;
+            border: 1px solid #28a745;
+            border-radius: 3px;
+            padding: 3px 5px;
+            margin: 2px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        
+        .special-shift-time {
+            color: #155724;
+            font-weight: bold;
+            font-size: 10px;
+        }
+        
+        .special-shift-delete {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 0;
+            margin-left: 4px;
+            opacity: 0.7;
+        }
+        
+        .special-shift-delete:hover {
+            opacity: 1;
+            background-color: rgba(220, 53, 69, 0.1);
+            border-radius: 2px;
+        }
+        
         .capacity-edit-mode {
             display: flex;
             flex-direction: column;
@@ -947,6 +1001,61 @@
             color: #666666;
             cursor: not-allowed;
         }
+        
+        /* Form styles for special shift modal */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: #4285f4;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+        }
+        
+        .form-group input[readonly] {
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+        
+        .date-display {
+            padding: 8px 12px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .error-message {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+        }
+        
         .profile-notification {
             position: fixed;
             top: 60px;
@@ -1999,6 +2108,43 @@
             <div class="modal-footer">
                 <div class="modal-buttons">
                     <button type="button" class="modal-btn cancel-btn" onclick="closeShiftDetailModal()">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 特別シフト追加モーダル -->
+    <div id="specialShiftModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>特別シフト追加</h3>
+                <span class="modal-close" onclick="closeSpecialShiftModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="specialShiftForm">
+                    <div class="form-group">
+                        <label>日付:</label>
+                        <div id="specialShiftDate" class="date-display"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="specialShiftStartTime">開始時刻:</label>
+                        <select id="specialShiftStartTime" name="startTime" required>
+                            <option value="">選択してください</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="specialShiftEndTime">終了時刻:</label>
+                        <select id="specialShiftEndTime" name="endTime" required>
+                            <option value="">選択してください</option>
+                        </select>
+                    </div>
+                    <div id="specialShiftError" class="error-message" style="display: none;"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn submit-btn" onclick="submitSpecialShift()">追加</button>
+                    <button type="button" class="modal-btn cancel-btn" onclick="closeSpecialShiftModal()">キャンセル</button>
                 </div>
             </div>
         </div>

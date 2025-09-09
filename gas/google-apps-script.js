@@ -57,6 +57,10 @@ function doGet(e) {
       // ユーザープロフィールの更新
       const result = updateUserProfile(spreadsheet, params.userId, params.nickname, params.realName);
       responseData = {success: result};
+    } else if (params.type === 'loadSpecialShifts') {
+      // 特別シフトデータの読み込み
+      const specialShifts = loadSpecialShifts(spreadsheet);
+      responseData = {success: true, data: specialShifts};
     } else {
       responseData = {success: false, error: 'Invalid request'};
     }
@@ -147,6 +151,20 @@ function doPost(e) {
     } else if (data.type === 'saveUser') {
       // ユーザーログインデータの処理
       saveUserData(spreadsheet, data);
+      
+    } else if (data.type === 'addSpecialShift') {
+      // 特別シフトの追加
+      const result = addSpecialShift(spreadsheet, data);
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+        
+    } else if (data.type === 'deleteSpecialShift') {
+      // 特別シフトの削除
+      const result = deleteSpecialShift(spreadsheet, data);
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
       
     } else {
       throw new Error('不明なリクエストタイプ: ' + data.type);
@@ -1396,5 +1414,145 @@ function updateUserProfile(spreadsheet, userId, nickname, realName) {
   } catch (error) {
     Logger.log('ユーザープロフィールの更新に失敗しました: ' + error.toString());
     return false;
+  }
+}
+
+// 特別シフトデータを読み込む関数
+function loadSpecialShifts(spreadsheet) {
+  try {
+    Logger.log('=== loadSpecialShifts DEBUG START ===');
+    const specialShiftSheet = spreadsheet.getSheetByName('特別シフト');
+    
+    if (!specialShiftSheet) {
+      Logger.log('❌ 特別シフトシートが見つかりません');
+      return [];
+    }
+    Logger.log('✅ 特別シフトシートを取得しました');
+    
+    const data = specialShiftSheet.getDataRange().getValues();
+    Logger.log('シートデータ行数: ' + data.length);
+    Logger.log('シートデータの内容:', data);
+    
+    if (data.length <= 1) {
+      Logger.log('データがヘッダー行のみまたは空です');
+      return [];
+    }
+    
+    const specialShifts = [];
+    
+    // ヘッダー行をスキップして処理
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      Logger.log(`行 ${i + 1}:`, row);
+      if (row[1]) { // 日付列が空でない場合のみ追加
+        const shiftData = {
+          timestamp: row[0],
+          date: row[1],
+          startTime: row[2],
+          endTime: row[3],
+          updaterId: row[4],
+          updaterName: row[5]
+        };
+        specialShifts.push(shiftData);
+        Logger.log('特別シフトデータを追加:', shiftData);
+      } else {
+        Logger.log(`行 ${i + 1} はスキップされました（日付が空）`);
+      }
+    }
+    
+    Logger.log('✅ 特別シフトデータを読み込みました: ' + specialShifts.length + '件');
+    Logger.log('最終的な特別シフトデータ:', specialShifts);
+    Logger.log('=== loadSpecialShifts DEBUG END ===');
+    return specialShifts;
+    
+  } catch (error) {
+    Logger.log('❌ 特別シフトの読み込みに失敗しました: ' + error.toString());
+    return [];
+  }
+}
+
+// 特別シフトを追加する関数
+function addSpecialShift(spreadsheet, data) {
+  try {
+    let specialShiftSheet = spreadsheet.getSheetByName('特別シフト');
+    
+    // シートが存在しない場合は作成
+    if (!specialShiftSheet) {
+      specialShiftSheet = spreadsheet.insertSheet('特別シフト');
+      // ヘッダー行を設定
+      const headers = ['更新日時', '日付', '開始時刻', '終了時刻', '更新者ID', '更新者名'];
+      specialShiftSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      Logger.log('特別シフトシートを作成しました');
+    }
+    
+    // 新しい行にデータを追加
+    const newRow = [
+      new Date(),
+      data.date,
+      data.startTime,
+      data.endTime,
+      data.updaterId,
+      data.updaterName
+    ];
+    
+    specialShiftSheet.appendRow(newRow);
+    
+    Logger.log('特別シフトを追加しました: ' + data.date + ' ' + data.startTime + '-' + data.endTime);
+    
+    return {
+      success: true,
+      message: '特別シフトを追加しました'
+    };
+    
+  } catch (error) {
+    Logger.log('特別シフトの追加に失敗しました: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// 特別シフトを削除する関数
+function deleteSpecialShift(spreadsheet, data) {
+  try {
+    const specialShiftSheet = spreadsheet.getSheetByName('特別シフト');
+    
+    if (!specialShiftSheet) {
+      return {
+        success: false,
+        error: '特別シフトシートが見つかりません'
+      };
+    }
+    
+    const sheetData = specialShiftSheet.getDataRange().getValues();
+    
+    // 該当する行を検索して削除
+    for (let i = sheetData.length - 1; i >= 1; i--) { // 下から検索（削除による行番号の変化を防ぐため）
+      const row = sheetData[i];
+      if (row[1] === data.date && 
+          row[2] === data.startTime && 
+          row[3] === data.endTime) {
+        specialShiftSheet.deleteRow(i + 1);
+        Logger.log('特別シフトを削除しました: ' + data.date + ' ' + data.startTime + '-' + data.endTime);
+        
+        return {
+          success: true,
+          message: '特別シフトを削除しました'
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      error: '該当する特別シフトが見つかりませんでした'
+    };
+    
+  } catch (error) {
+    Logger.log('特別シフトの削除に失敗しました: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
   }
 }
