@@ -59,8 +59,7 @@ function doGet(e) {
       responseData = {success: result};
     } else if (params.type === 'loadSpecialShifts') {
       // 特別シフトデータの読み込み
-      const specialShifts = loadSpecialShifts(spreadsheet);
-      responseData = {success: true, data: specialShifts};
+      responseData = loadSpecialShifts(spreadsheet);
     } else {
       responseData = {success: false, error: 'Invalid request'};
     }
@@ -1420,88 +1419,144 @@ function updateUserProfile(spreadsheet, userId, nickname, realName) {
 // 特別シフトデータを読み込む関数
 function loadSpecialShifts(spreadsheet) {
   try {
-    Logger.log('=== loadSpecialShifts DEBUG START ===');
+    Logger.log('=== loadSpecialShifts DEBUG ===');
+    
     const specialShiftSheet = spreadsheet.getSheetByName('特別シフト');
     
     if (!specialShiftSheet) {
-      Logger.log('❌ 特別シフトシートが見つかりません');
-      return [];
-    }
-    Logger.log('✅ 特別シフトシートを取得しました');
-    
-    const data = specialShiftSheet.getDataRange().getValues();
-    Logger.log('シートデータ行数: ' + data.length);
-    Logger.log('シートデータの内容:', data);
-    
-    if (data.length <= 1) {
-      Logger.log('データがヘッダー行のみまたは空です');
-      return [];
+      Logger.log('特別シフトシートが存在しません');
+      return {
+        success: true,
+        data: [],
+        message: '特別シフトシートが存在しません（空のデータを返します）'
+      };
     }
     
-    const specialShifts = [];
+    const lastRow = specialShiftSheet.getLastRow();
+    if (lastRow <= 1) {
+      Logger.log('特別シフトデータがありません（ヘッダーのみ）');
+      return {
+        success: true,
+        data: []
+      };
+    }
     
-    // ヘッダー行をスキップして処理
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      Logger.log(`行 ${i + 1}:`, row);
-      if (row[1]) { // 日付列が空でない場合のみ追加
-        const shiftData = {
-          timestamp: row[0],
-          date: row[1],
-          startTime: row[2],
-          endTime: row[3],
-          updaterId: row[4],
-          updaterName: row[5]
-        };
-        specialShifts.push(shiftData);
-        Logger.log('特別シフトデータを追加:', shiftData);
-      } else {
-        Logger.log(`行 ${i + 1} はスキップされました（日付が空）`);
+    // ヘッダーを除いたデータ範囲を取得（新しい構造: UUID, 日付, 開始時刻, 終了時刻, 更新者ID, 更新者名, 更新日時）
+    const dataRange = specialShiftSheet.getRange(2, 1, lastRow - 1, 7);
+    const data = dataRange.getValues();
+    
+    Logger.log('読み込んだ行数:', data.length);
+    
+    const specialShifts = data.map((row, index) => {
+      // 日付の正規化処理（タイムゾーンのずれを修正）
+      let normalizedDate = row[1];
+      
+      if (normalizedDate instanceof Date) {
+        // Dateオブジェクトの場合は、JSTでの日付文字列に変換
+        // getFullYear(), getMonth(), getDate()はローカル時間を返すので安全
+        const year = normalizedDate.getFullYear();
+        const month = String(normalizedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(normalizedDate.getDate()).padStart(2, '0');
+        normalizedDate = `${year}-${month}-${day}`;
+        Logger.log('日付変換: Date object -> ' + normalizedDate);
+      } else if (typeof normalizedDate === 'string' && normalizedDate.includes('T')) {
+        // ISO形式の場合は日付部分のみを抽出
+        normalizedDate = normalizedDate.split('T')[0];
+        Logger.log('日付変換: ISO string -> ' + normalizedDate);
       }
-    }
+      
+      const shift = {
+        uuid: row[0],                    // UUID
+        date: normalizedDate,            // 正規化された日付
+        startTime: row[2],               // 開始時刻
+        endTime: row[3],                 // 終了時刻
+        userId: row[4],                  // 更新者ID
+        userName: row[5],                // 更新者名
+        updatedAt: row[6]                // 更新日時
+      };
+      
+      Logger.log('行' + (index + 2) + ':', {
+        uuid: shift.uuid,
+        date: shift.date,
+        originalDate: row[1],
+        dateType: typeof row[1],
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        userId: shift.userId,
+        userName: shift.userName,
+        updatedAt: shift.updatedAt
+      });
+      
+      return shift;
+    });
     
-    Logger.log('✅ 特別シフトデータを読み込みました: ' + specialShifts.length + '件');
-    Logger.log('最終的な特別シフトデータ:', specialShifts);
-    Logger.log('=== loadSpecialShifts DEBUG END ===');
-    return specialShifts;
+    Logger.log('特別シフトデータ読み込み完了:', specialShifts.length + '件');
+    
+    return {
+      success: true,
+      data: specialShifts
+    };
     
   } catch (error) {
-    Logger.log('❌ 特別シフトの読み込みに失敗しました: ' + error.toString());
-    return [];
+    Logger.log('特別シフト読み込みエラー: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
   }
 }
 
 // 特別シフトを追加する関数
 function addSpecialShift(spreadsheet, data) {
   try {
+    Logger.log('=== addSpecialShift DEBUG ===');
+    Logger.log('受信データ:', JSON.stringify(data));
+    
     let specialShiftSheet = spreadsheet.getSheetByName('特別シフト');
     
     // シートが存在しない場合は作成
     if (!specialShiftSheet) {
       specialShiftSheet = spreadsheet.insertSheet('特別シフト');
-      // ヘッダー行を設定
-      const headers = ['更新日時', '日付', '開始時刻', '終了時刻', '更新者ID', '更新者名'];
-      specialShiftSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      // ヘッダー行を設定（新しい構造）
+      specialShiftSheet.getRange(1, 1, 1, 7).setValues([
+        ['UUID', '日付', '開始時刻', '終了時刻', '更新者ID', '更新者名', '更新日時']
+      ]);
       Logger.log('特別シフトシートを作成しました');
     }
     
-    // 新しい行にデータを追加
+    // UUIDを生成
+    const uuid = Utilities.getUuid();
+    Logger.log('生成されたUUID:', uuid);
+    
+    const now = new Date();
+    
+    // 更新者情報を取得（フィールド名を確認）
+    const userId = data.updaterId || data.userId || '';
+    const userName = data.updaterName || data.userName || '';
+    
+    Logger.log('更新者情報:', { userId, userName });
+    
+    // 新しい行を追加（新しい構造に合わせて）
     const newRow = [
-      new Date(),
-      data.date,
-      data.startTime,
-      data.endTime,
-      data.updaterId,
-      data.updaterName
+      uuid,                    // UUID
+      data.date,              // 日付
+      data.startTime,         // 開始時刻
+      data.endTime,           // 終了時刻
+      userId,                 // 更新者ID
+      userName,               // 更新者名
+      now                     // 更新日時
     ];
+    
+    Logger.log('追加する行データ:', newRow);
     
     specialShiftSheet.appendRow(newRow);
     
-    Logger.log('特別シフトを追加しました: ' + data.date + ' ' + data.startTime + '-' + data.endTime);
+    Logger.log('特別シフトを追加しました');
     
     return {
       success: true,
-      message: '特別シフトを追加しました'
+      message: '特別シフトが正常に追加されました',
+      uuid: uuid
     };
     
   } catch (error) {
@@ -1516,6 +1571,9 @@ function addSpecialShift(spreadsheet, data) {
 // 特別シフトを削除する関数
 function deleteSpecialShift(spreadsheet, data) {
   try {
+    Logger.log('=== deleteSpecialShift DEBUG ===');
+    Logger.log('削除リクエストデータ:', JSON.stringify(data));
+    
     const specialShiftSheet = spreadsheet.getSheetByName('特別シフト');
     
     if (!specialShiftSheet) {
@@ -1526,13 +1584,102 @@ function deleteSpecialShift(spreadsheet, data) {
     }
     
     const sheetData = specialShiftSheet.getDataRange().getValues();
+    Logger.log('シートデータ行数:', sheetData.length);
     
-    // 該当する行を検索して削除
-    for (let i = sheetData.length - 1; i >= 1; i--) { // 下から検索（削除による行番号の変化を防ぐため）
+    // UUIDが提供されている場合はUUIDで削除
+    if (data.uuid) {
+      Logger.log('UUIDベースで削除:', data.uuid);
+      
+      for (let i = sheetData.length - 1; i >= 1; i--) {
+        const row = sheetData[i];
+        const rowUuid = row[0]; // 新しい構造では0列目がUUID
+        
+        Logger.log('行' + (i+1) + ' UUID:', rowUuid);
+        
+        if (rowUuid === data.uuid) {
+          Logger.log('一致するUUIDを発見: ' + (i+1));
+          specialShiftSheet.deleteRow(i + 1);
+          Logger.log('特別シフトを削除しました (UUID: ' + data.uuid + ')');
+          
+          return {
+            success: true,
+            message: '特別シフトを削除しました'
+          };
+        }
+      }
+      
+      Logger.log('該当するUUIDが見つかりませんでした');
+      return {
+        success: false,
+        error: '該当する特別シフトが見つかりませんでした (UUID: ' + data.uuid + ')'
+      };
+    }
+    
+    // UUIDがない場合は従来の方法で削除（日付+時間での一致）
+    Logger.log('日付・時間ベースで削除');
+    
+    for (let i = sheetData.length - 1; i >= 1; i--) {
       const row = sheetData[i];
-      if (row[1] === data.date && 
-          row[2] === data.startTime && 
-          row[3] === data.endTime) {
+      
+      Logger.log('行' + (i+1) + ':', {
+        date: row[1],      // 日付
+        startTime: row[2], // 開始時刻
+        endTime: row[3],   // 終了時刻
+        dateType: typeof row[1],
+        startTimeType: typeof row[2],
+        endTimeType: typeof row[3]
+      });
+      
+      // 日付の比較
+      let sheetDate = row[1];
+      if (sheetDate instanceof Date) {
+        const year = sheetDate.getFullYear();
+        const month = String(sheetDate.getMonth() + 1).padStart(2, '0');
+        const day = String(sheetDate.getDate()).padStart(2, '0');
+        sheetDate = `${year}-${month}-${day}`;
+      } else if (typeof sheetDate === 'string' && sheetDate.includes('T')) {
+        sheetDate = sheetDate.split('T')[0];
+      }
+      
+      // 時間の比較
+      let sheetStartTime = row[2];
+      let sheetEndTime = row[3];
+      
+      if (sheetStartTime instanceof Date) {
+        const hours = String(sheetStartTime.getHours()).padStart(2, '0');
+        const minutes = String(sheetStartTime.getMinutes()).padStart(2, '0');
+        sheetStartTime = `${hours}:${minutes}`;
+      } else if (typeof sheetStartTime === 'string' && sheetStartTime.includes('T')) {
+        const utcDate = new Date(sheetStartTime);
+        const jstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+        const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+        const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+        sheetStartTime = `${hours}:${minutes}`;
+      }
+      
+      if (sheetEndTime instanceof Date) {
+        const hours = String(sheetEndTime.getHours()).padStart(2, '0');
+        const minutes = String(sheetEndTime.getMinutes()).padStart(2, '0');
+        sheetEndTime = `${hours}:${minutes}`;
+      } else if (typeof sheetEndTime === 'string' && sheetEndTime.includes('T')) {
+        const utcDate = new Date(sheetEndTime);
+        const jstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+        const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+        const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+        sheetEndTime = `${hours}:${minutes}`;
+      }
+      
+      Logger.log('正規化後 - シートデータ:', {
+        date: sheetDate,
+        startTime: sheetStartTime,
+        endTime: sheetEndTime
+      });
+      
+      // 正規化したデータで比較
+      if (sheetDate === data.date && 
+          sheetStartTime === data.startTime && 
+          sheetEndTime === data.endTime) {
+        Logger.log('一致する行を発見: ' + (i+1));
         specialShiftSheet.deleteRow(i + 1);
         Logger.log('特別シフトを削除しました: ' + data.date + ' ' + data.startTime + '-' + data.endTime);
         
@@ -1543,6 +1690,7 @@ function deleteSpecialShift(spreadsheet, data) {
       }
     }
     
+    Logger.log('該当する特別シフトが見つかりませんでした');
     return {
       success: false,
       error: '該当する特別シフトが見つかりませんでした'
