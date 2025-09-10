@@ -1,6 +1,14 @@
 // Google Apps Script用のJavaScriptコード
 // このファイルをGoogle Apps Scriptエディタにコピー&ペーストしてください
 
+// UUID生成関数
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // 設定値をプロパティサービスから取得
 function getCalendarId() {
   const properties = PropertiesService.getScriptProperties();
@@ -115,6 +123,45 @@ function doPost(e) {
           .setStatusCode(result.statusCode || 400);
       }
       
+    } else if (data.type === 'submitShift') {
+      // シフト申請処理（特別シフト含む）- 既存の通常シフト処理を使用
+      if (data.timeSlots && data.timeSlots.length > 0) {
+        // 時間範囲を30分区切りに変換
+        const expandedTimeSlots = [];
+        
+        for (const timeSlot of data.timeSlots) {
+          if (timeSlot.includes('-')) {
+            // "07:30-09:30" のような範囲を30分区切りに分割
+            const [startTime, endTime] = timeSlot.split('-');
+            const thirtyMinSlots = convertToThirtyMinuteSlots(startTime, endTime);
+            expandedTimeSlots.push(...thirtyMinSlots);
+          } else {
+            // 既に30分区切りの場合
+            expandedTimeSlots.push(timeSlot);
+          }
+        }
+        
+        // processMultipleShiftRequestsに正しい形式でデータを渡す
+        const multipleShiftData = {
+          userId: data.userId,
+          userName: data.userName,
+          userEmail: data.userEmail || '',
+          date: data.date,
+          timeSlots: expandedTimeSlots,
+          content: data.content || 'シフト'
+        };
+        
+        const result = processMultipleShiftRequests(spreadsheet, multipleShiftData);
+        
+        return ContentService
+          .createTextOutput(JSON.stringify(result))
+          .setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return ContentService
+          .createTextOutput(JSON.stringify({success: false, error: 'No time slots provided'}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+        
     } else if (data.type === 'multipleShifts') {
       // 複数シフト申請の一括処理
       const results = processMultipleShiftRequests(spreadsheet, data);
@@ -245,13 +292,22 @@ function addToCalendar(shiftData) {
 メール: ${shiftData.userEmail}
 時間: ${shiftData.time}`;
     
-    // カレンダーにイベントを追加
+    // カレンダーにイベントを追加（拡張プロパティでUUIDを保存）
     const event = calendar.createEvent(title, startDateTime, endDateTime, {
       description: description,
       location: 'つくまなラボ'  // 必要に応じて場所を設定
     });
     
-    Logger.log(`カレンダーイベントを作成しました: ${title} (${startDateTime} - ${endDateTime})`);
+    // 拡張プロパティでUUIDとユーザー情報を保存（カレンダー上では非表示）
+    if (shiftData.uuid) {
+      event.setTag('shift_uuid', shiftData.uuid);
+      event.setTag('user_id', shiftData.userId);
+      event.setTag('user_email', shiftData.userEmail);
+      event.setTag('shift_time', shiftData.time);
+      Logger.log(`UUID付きカレンダーイベントを作成: ${title}, UUID: ${shiftData.uuid}`);
+    } else {
+      Logger.log(`カレンダーイベントを作成しました: ${title} (${startDateTime} - ${endDateTime})`);
+    }
     
   } catch (error) {
     Logger.log(`カレンダーへの追加に失敗しました: ${error.toString()}`);
@@ -589,7 +645,8 @@ function loadUserShifts(spreadsheet, userId) {
         timeSlot: row[3],        // D列: 時間帯
         content: 'シフト',       // 固定値
         nickname: userProfile.nickname || '', // ニックネーム
-        realName: userProfile.realName || ''  // 本名
+        realName: userProfile.realName || '', // 本名
+        uuid: row[5] || ''       // F列: UUID
       };
     }).filter(item => item.shiftDate !== ''); // 有効な日付のみ
     
@@ -1202,29 +1259,54 @@ function deleteShiftRequest(spreadsheet, data) {
     const allData = shiftSheet.getDataRange().getValues();
     const deletedRows = [];
     
-    // 各時間スロットについて削除対象を検索
-    for (const timeSlot of targetTimeSlots) {
+    // UUIDが指定されている場合はUUIDのみで検索
+    if (data.uuid) {
+      Logger.log('UUIDベース削除: ' + data.uuid);
       for (let i = 1; i < allData.length; i++) {
         const row = allData[i];
-        let rowDateStr = '';
+        const rowUuid = row[5]; // F列: UUID
         
-        try {
-          const dateValue = row[2]; // C列: date
-          if (dateValue instanceof Date) {
-            rowDateStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-          } else if (typeof dateValue === 'string') {
-            rowDateStr = dateValue;
-          }
-        } catch (e) {
-          rowDateStr = '';
+        if (rowUuid === data.uuid) {
+          const timeSlot = row[3]; // D列: 時間帯
+          deletedRows.push({ 
+            index: i + 1, 
+            timeSlot: timeSlot,
+            uuid: rowUuid
+          });
+          Logger.log(`UUIDで削除対象発見: ${data.uuid}, 時間帯: ${timeSlot}`);
+          break; // UUIDは一意なので1つ見つかったら終了
         }
-        
-        // 条件に一致するシフトを検索（ユーザーIDと日付、時間のみで判定）
-        if (row[1] === userId &&     // B列: userId
-            rowDateStr === date &&   // C列: date
-            row[3] === timeSlot) {   // D列: time
-          deletedRows.push({ index: i + 1, timeSlot: timeSlot }); // スプレッドシートの行番号（1ベース）
-          break;
+      }
+    } else {
+      // 従来の方法（後方互換性のため）
+      Logger.log('従来方式削除（ユーザーID、日付、時間帯で検索）');
+      for (const timeSlot of targetTimeSlots) {
+        for (let i = 1; i < allData.length; i++) {
+          const row = allData[i];
+          
+          let rowDateCheckStr = '';
+          try {
+            const dateValue = row[2]; // C列: シフト日付
+            if (dateValue instanceof Date) {
+              rowDateCheckStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            } else if (typeof dateValue === 'string') {
+              rowDateCheckStr = dateValue;
+            }
+          } catch (e) {
+            rowDateCheckStr = '';
+          }
+          
+          if (row[1] === userId &&         // B列: ユーザーID
+              rowDateCheckStr === date &&  // C列: シフト日付
+              row[3] === timeSlot) {       // D列: 時間帯
+            const uuid = row[5]; // F列: UUID
+            deletedRows.push({ 
+              index: i + 1, 
+              timeSlot: timeSlot,
+              uuid: uuid
+            });
+            break;
+          }
         }
       }
     }
@@ -1245,7 +1327,7 @@ function deleteShiftRequest(spreadsheet, data) {
       shiftSheet.deleteRow(deleteInfo.index);
     }
     
-    // Google Calendarからも削除（各時間スロットについて）
+    // Google Calendarからも削除（各時間スロットについて、UUID付き）
     for (const deleteInfo of deletedRows) {
       try {
         deleteFromCalendar({
@@ -1253,7 +1335,8 @@ function deleteShiftRequest(spreadsheet, data) {
           userName,
           userEmail,
           date,
-          time: deleteInfo.timeSlot
+          time: deleteInfo.timeSlot,
+          uuid: deleteInfo.uuid  // UUIDを追加
         });
       } catch (calendarError) {
         Logger.log('カレンダーからの削除に失敗: ' + calendarError.toString());
@@ -1330,14 +1413,29 @@ function deleteFromCalendar(shiftData) {
     
     const events = calendar.getEvents(startDate, endDate);
     
-    // 条件に一致するイベントを削除
-    const targetTitle = `${shiftData.userName} - `;
+    // UUIDがある場合は拡張プロパティで検索、ない場合は従来の方法
+    Logger.log(`削除対象検索中: UUID=${shiftData.uuid}, ユーザー=${shiftData.userName}, メール=${shiftData.userEmail}, 時間=${shiftData.time}`);
+    
     events.forEach(event => {
-      if (event.getTitle().startsWith(targetTitle) && 
-          event.getDescription().includes(shiftData.userEmail) &&
-          event.getDescription().includes(shiftData.time)) {
+      const eventTitle = event.getTitle();
+      const eventDescription = event.getDescription();
+      
+      // UUIDが指定されている場合は拡張プロパティで検索（推奨）
+      if (shiftData.uuid) {
+        const eventUuid = event.getTag('shift_uuid');
+        if (eventUuid === shiftData.uuid) {
+          event.deleteEvent();
+          Logger.log(`UUIDでカレンダーイベントを削除: ${eventTitle}, UUID: ${eventUuid}`);
+          return;
+        }
+      }
+      
+      // UUIDがない場合は従来の方法で検索（後方互換性）
+      Logger.log(`イベント確認: タイトル="${eventTitle}", 説明="${eventDescription}"`);
+      if (eventDescription.includes(shiftData.userEmail) &&
+          eventDescription.includes(shiftData.time)) {
         event.deleteEvent();
-        Logger.log('カレンダーからイベントを削除しました: ' + event.getTitle());
+        Logger.log('従来方式でカレンダーイベントを削除: ' + eventTitle);
       }
     });
     
@@ -1703,4 +1801,116 @@ function deleteSpecialShift(spreadsheet, data) {
       error: error.toString()
     };
   }
+}
+
+// シフト申請を処理する関数（特別シフト対応）
+function processShiftSubmission(spreadsheet, data) {
+  try {
+    Logger.log('=== processShiftSubmission DEBUG ===');
+    Logger.log('受信データ:', JSON.stringify(data));
+    
+    const shiftsSheet = spreadsheet.getSheetByName('シフト');
+    if (!shiftsSheet) {
+      return {
+        success: false,
+        error: 'シフトシートが見つかりません'
+      };
+    }
+    
+    const results = [];
+    
+    // timeSlots配列内の各時間帯を処理
+    for (const timeSlot of data.timeSlots) {
+      Logger.log('処理中の時間帯:', timeSlot);
+      
+      // 時間帯が "HH:MM-HH:MM" 形式の場合は30分区切りに変換
+      let timeSlotList;
+      if (timeSlot.includes('-')) {
+        const [startTime, endTime] = timeSlot.split('-');
+        timeSlotList = convertToThirtyMinuteSlots(startTime, endTime);
+        Logger.log('30分区切りに変換:', timeSlotList);
+      } else {
+        timeSlotList = [timeSlot];
+      }
+      
+      // 各30分スロットをシートに追加
+      for (const slot of timeSlotList) {
+        const uuid = generateUUID();
+        const newRow = [
+          new Date(),           // A列: 登録日時
+          data.userId,          // B列: ユーザーID
+          data.date,            // C列: シフト日付
+          slot,                 // D列: 時間帯
+          data.userName || '',  // E列: 名前
+          uuid                  // F列: UUID
+        ];
+        
+        shiftsSheet.appendRow(newRow);
+        Logger.log('シフトを追加（UUID付き）:', newRow);
+        
+        // Google Calendarにも追加（UUID付き）
+        try {
+          addToCalendar({
+            userId: data.userId,
+            userName: data.userName || '',
+            userEmail: data.userEmail || '', // リクエストから取得
+            date: data.date,
+            time: slot,
+            content: data.content || 'シフト',
+            uuid: uuid  // UUIDを追加
+          });
+          Logger.log(`カレンダーに追加完了: ${slot}, UUID: ${uuid}`);
+        } catch (calendarError) {
+          Logger.log(`カレンダー追加エラー (${slot}): ${calendarError.toString()}`);
+        }
+        
+        results.push({ timeSlot: slot, success: true, uuid: uuid });
+      }
+    }
+    
+    Logger.log('シフト申請処理完了:', results.length + '件');
+    
+    return {
+      success: true,
+      message: 'シフトを申請しました',
+      results: results
+    };
+    
+  } catch (error) {
+    Logger.log('シフト申請処理エラー: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// 時間帯を30分区切りのスロットに変換する関数
+function convertToThirtyMinuteSlots(startTime, endTime) {
+  const slots = [];
+  
+  // 時間を分に変換
+  function timeToMinutes(time) {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+  
+  // 分を時間に変換
+  function minutesToTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  }
+  
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  
+  // 30分刻みでスロットを生成
+  for (let current = startMinutes; current < endMinutes; current += 30) {
+    const slotStart = minutesToTime(current);
+    const slotEnd = minutesToTime(current + 30);
+    slots.push(`${slotStart}-${slotEnd}`);
+  }
+  
+  return slots;
 }

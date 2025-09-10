@@ -762,23 +762,24 @@ function createMonthCalendar(year, month, isCapacityMode = false, isRequestMode 
                     memoDisplay.textContent = ''; // 初期は空
                     requestInfo.appendChild(memoDisplay);
                     
+                    // 特別シフトがある日付かチェック
+                    const hasSpecialShifts = checkHasSpecialShifts(dateKey);
+                    
                     if (!isValidRequestDate || cellDate < today) {
                         // 申請不可能な日は無効化
                         cell.classList.add('past-date');
                         cell.title = cellDate < today ? '過去の日付です' : '申請可能期間外です';
                         // 申請ボタンは表示しない
-                    } else {
-                        // 申請ボタン（申請可能日のみ）
-                        if (defaultCapacity > 0) {
-                            const applyButton = document.createElement('button');
-                            applyButton.className = 'inline-apply-btn';
-                            applyButton.textContent = '申請';
-                            applyButton.onclick = (e) => {
-                                e.stopPropagation();
-                                openDateDetailModal(dateKey);
-                            };
-                            requestInfo.appendChild(applyButton);
-                        }
+                    } else if (hasSpecialShifts || defaultCapacity > 0) {
+                        // 特別シフトまたは通常シフトがある場合は申請ボタンを表示
+                        const applyButton = document.createElement('button');
+                        applyButton.className = 'inline-apply-btn';
+                        applyButton.textContent = '申請';
+                        applyButton.onclick = (e) => {
+                            e.stopPropagation();
+                            openDateDetailModal(dateKey);
+                        };
+                        requestInfo.appendChild(applyButton);
                     }
                     
                     // requestInfoを追加
@@ -957,8 +958,9 @@ function displayShiftsForDate(container, dateKey) {
 
 // シフト削除機能（管理者専用）
 async function deleteShift(shift, dateKey, timeSlot) {
-    if (!isAdminUser) {
-        alert('管理者権限が必要です。');
+    // 管理者または本人のシフトのみ削除可能
+    if (!isAdminUser && shift.userId !== currentUser.sub) {
+        alert('自分のシフトまたは管理者権限が必要です。');
         return;
     }
     
@@ -977,6 +979,7 @@ async function deleteShift(shift, dateKey, timeSlot) {
             userEmail: userEmail,
             date: dateKey,
             time: timeSlot,
+            uuid: shift.uuid, // UUIDを追加
             adminUserId: currentUser.sub
         };
         
@@ -1047,9 +1050,10 @@ function expandTimeRange(timeRange) {
     return timeSlots;
 }
 
-async function deleteShiftFromModal(buttonElement, userId, userName, userEmail, dateKey, timeSlot) {
-    if (!isAdminUser) {
-        alert('管理者権限が必要です。');
+async function deleteShiftFromModal(buttonElement, userId, userName, userEmail, dateKey, timeSlot, uuid) {
+    // 管理者または本人のシフトのみ削除可能
+    if (!isAdminUser && userId !== currentUser.sub) {
+        alert('自分のシフトまたは管理者権限が必要です。');
         return;
     }
     
@@ -1078,6 +1082,7 @@ async function deleteShiftFromModal(buttonElement, userId, userName, userEmail, 
             userEmail: userEmail,
             date: dateKey,
             timeSlots: timeSlots, // 複数時間枠を配列で送信
+            uuid: uuid, // UUIDを追加
             adminUserId: currentUser.sub
         };
         
@@ -1201,8 +1206,8 @@ function openShiftDetailModal(dateKey) {
                             <div class="shift-person-email">${shift.userEmail || shift.email || ''}</div>
                             ${shift.content && shift.content !== 'シフト' ? `<div class="shift-person-note">${shift.content}</div>` : ''}
                         </div>
-                        ${isAdminUser ? `
-                            <button class="shift-delete-btn" onclick="deleteShiftFromModal(this, '${shift.userId}', '${getShiftDisplayName(shift)}', '${shift.userEmail || shift.email || ''}', '${dateKey}', '${timeSlot}')">
+                        ${(isAdminUser || shift.userId === currentUser.sub) ? `
+                            <button class="shift-delete-btn" onclick="deleteShiftFromModal(this, '${shift.userId}', '${getShiftDisplayName(shift)}', '${shift.userEmail || shift.email || ''}', '${dateKey}', '${timeSlot}', '${shift.uuid || ''}')">
                                 削除
                             </button>
                         ` : ''}
@@ -1897,7 +1902,7 @@ function displayMyShifts(container, shiftsData) {
         // 削除ボタンの表示（翌日以降のシフトのみ）
         const deleteButtonHTML = canDelete ? 
             `<td class="shift-actions">
-                <button class="my-shift-delete-btn" onclick="deleteMyShift('${shift.shiftDate}', '${shift.timeSlot}', this)">
+                <button class="my-shift-delete-btn" onclick="deleteMyShift('${shift.shiftDate}', '${shift.timeSlot}', '${shift.uuid || ''}', this)">
                     削除
                 </button>
             </td>` :
@@ -1932,7 +1937,7 @@ function displayMyShifts(container, shiftsData) {
 }
 
 // 自分のシフト削除機能
-async function deleteMyShift(shiftDate, timeSlot, buttonElement) {
+async function deleteMyShift(shiftDate, timeSlot, uuid, buttonElement) {
     if (!currentUser) {
         alert('ログインしてください。');
         return;
@@ -1970,7 +1975,8 @@ async function deleteMyShift(shiftDate, timeSlot, buttonElement) {
             userName: currentUser.name,
             userEmail: currentUser.email,
             date: shiftDate,
-            timeSlots: expandedTimeSlots // 複数の時間枠を送信
+            timeSlots: expandedTimeSlots, // 複数の時間枠を送信
+            uuid: uuid // UUIDを追加
         };
         
         // シフト削除リクエストを送信
@@ -2619,13 +2625,63 @@ async function openDateDetailModal(dateKey) {
     }
     
     // 時間枠を生成
-    const startHour = 13;
-    const endHour = 18;
-    const slots = [];
+    let slots = [];
     
-    for (let hour = startHour; hour < endHour; hour++) {
-        slots.push(`${hour}:00-${hour}:30`);
-        slots.push(`${hour}:30-${hour + 1}:00`);
+    // 特別シフトがある日付かチェック
+    const hasSpecialShifts = checkHasSpecialShifts(dateKey);
+    
+    if (hasSpecialShifts) {
+        // 特別シフトの時間枠を30分区切りに変換
+        const shiftsForDate = specialShifts.filter(shift => {
+            let shiftDate = shift.date;
+            if (typeof shiftDate === 'string' && shiftDate.includes('T')) {
+                shiftDate = shiftDate.split('T')[0];
+            } else if (shiftDate instanceof Date) {
+                const year = shiftDate.getFullYear();
+                const month = String(shiftDate.getMonth() + 1).padStart(2, '0');
+                const day = String(shiftDate.getDate()).padStart(2, '0');
+                shiftDate = `${year}-${month}-${day}`;
+            }
+            return shiftDate === dateKey;
+        });
+        
+        // 特別シフトを30分区切りに変換
+        shiftsForDate.forEach(shift => {
+            const startTime = convertTimeToJST(shift.startTime);
+            const endTime = convertTimeToJST(shift.endTime);
+            
+            // 時間を分に変換
+            const timeToMinutes = (time) => {
+                const [hours, minutes] = time.split(':').map(Number);
+                return hours * 60 + minutes;
+            };
+            
+            // 分を時間に変換
+            const minutesToTime = (minutes) => {
+                const hours = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+            };
+            
+            const startMinutes = timeToMinutes(startTime);
+            const endMinutes = timeToMinutes(endTime);
+            
+            // 30分区切りでスロットを生成
+            for (let current = startMinutes; current < endMinutes; current += 30) {
+                const slotStart = minutesToTime(current);
+                const slotEnd = minutesToTime(current + 30);
+                slots.push(`${slotStart}-${slotEnd}`);
+            }
+        });
+    } else {
+        // 通常シフトの時間枠（13:00-18:00）
+        const startHour = 13;
+        const endHour = 18;
+        
+        for (let hour = startHour; hour < endHour; hour++) {
+            slots.push(`${hour}:00-${hour}:30`);
+            slots.push(`${hour}:30-${hour + 1}:00`);
+        }
     }
     
     // コンテナをクリア
@@ -2826,7 +2882,9 @@ async function submitDateDetailShiftRequest() {
         return;
     }
     
-    const remarks = document.getElementById('dateDetailRemarks')?.value.trim() || 'シフト'; // 備考欄の内容
+    // 特別シフトかどうかをチェック
+    const hasSpecialShifts = checkHasSpecialShifts(currentDetailDateKey);
+    const remarks = hasSpecialShifts ? '(特別シフト)' : (document.getElementById('dateDetailRemarks')?.value.trim() || 'シフト'); // 備考欄の内容
     
     // ボタンを無効化してローディング表示
     const modal = document.getElementById('dateDetailModal');
@@ -3478,6 +3536,48 @@ function displaySpecialShiftsForDate(dateKey, container) {
         
         container.appendChild(shiftItem);
     });
+}
+
+// 指定された日付に特別シフトがあるかチェックする関数
+function checkHasSpecialShifts(dateKey) {
+    if (!Array.isArray(specialShifts) || specialShifts.length === 0) {
+        return false;
+    }
+    
+    return specialShifts.some(shift => {
+        // 日付文字列を YYYY-MM-DD 形式に変換して比較
+        let shiftDate = shift.date;
+        if (typeof shiftDate === 'string' && shiftDate.includes('T')) {
+            // ISO形式の場合は日付部分のみを抽出
+            shiftDate = shiftDate.split('T')[0];
+        } else if (shiftDate instanceof Date) {
+            // Dateオブジェクトの場合はYYYY-MM-DD形式に変換
+            const year = shiftDate.getFullYear();
+            const month = String(shiftDate.getMonth() + 1).padStart(2, '0');
+            const day = String(shiftDate.getDate()).padStart(2, '0');
+            shiftDate = `${year}-${month}-${day}`;
+        }
+        return shiftDate === dateKey;
+    });
+}
+
+// 時間をJSTに変換するヘルパー関数
+function convertTimeToJST(timeString) {
+    if (!timeString) return '';
+    
+    if (typeof timeString === 'string' && timeString.includes('T') && timeString.includes('Z')) {
+        const utcDate = new Date(timeString);
+        const jstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+        const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+        const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+    }
+    
+    if (typeof timeString === 'string' && timeString.includes(':') && timeString.length >= 5) {
+        return timeString.substring(0, 5);
+    }
+    
+    return timeString;
 }
 
 // 特別シフトを削除する関数
