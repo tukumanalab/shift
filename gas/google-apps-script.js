@@ -1025,21 +1025,26 @@ function processSingleShiftRequest(spreadsheet, data) {
       }
     }
     
+    // UUIDを生成
+    const uuid = generateUUID();
+    
     // シフトデータを追加（ユーザーIDと名前を保存）
     shiftSheet.appendRow([
       new Date(),
       data.userId,
       data.date,
       data.time,
-      data.userName  // E列: 名前
+      data.userName,  // E列: 名前
+      uuid           // F列: UUID
     ]);
     
-    // Google Calendarに予定を追加（表示名を使用）
+    // Google Calendarに予定を追加（表示名とUUIDを使用）
     const calendarData = {
       ...data,
       userName: displayName,
       nickname: userProfile ? userProfile.nickname : '',
-      realName: userProfile ? userProfile.realName : ''
+      realName: userProfile ? userProfile.realName : '',
+      uuid: uuid
     };
     addToCalendar(calendarData);
     
@@ -1110,16 +1115,20 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
     
     // 有効な時間枠を一括でスプレッドシートに追加
     if (validTimeSlots.length > 0) {
-      const rowsToAdd = validTimeSlots.map(timeSlot => [
-        new Date(),
-        userId,
-        date,
-        timeSlot,
-        userName  // E列: 名前
-      ]);
+      const rowsToAdd = validTimeSlots.map(timeSlot => {
+        const uuid = generateUUID();
+        return [
+          new Date(),
+          userId,
+          date,
+          timeSlot,
+          userName,  // E列: 名前
+          uuid       // F列: UUID
+        ];
+      });
       
       // 一括でデータを追加（パフォーマンス向上）
-      const range = shiftSheet.getRange(shiftSheet.getLastRow() + 1, 1, rowsToAdd.length, 5);
+      const range = shiftSheet.getRange(shiftSheet.getLastRow() + 1, 1, rowsToAdd.length, 6);
       range.setValues(rowsToAdd);
       
       results.processed = validTimeSlots;
@@ -1128,8 +1137,13 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
       try {
         const mergedTimeRanges = mergeConsecutiveTimeSlots(validTimeSlots);
         
-        mergedTimeRanges.forEach(timeRange => {
+        mergedTimeRanges.forEach((timeRange) => {
           try {
+            // 複数のUUIDがある場合は最初のものを使用
+            const matchingUuid = rowsToAdd.find(rowData => validTimeSlots.some(slot => 
+              timeRange.includes(slot.split('-')[0])
+            ))?.[5] || generateUUID();
+            
             addToCalendar({
               userId,
               userName: displayName, // 表示名を使用
@@ -1138,7 +1152,8 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
               time: timeRange,
               content: content || 'シフト',
               nickname: userProfile ? userProfile.nickname : '',
-              realName: userProfile ? userProfile.realName : ''
+              realName: userProfile ? userProfile.realName : '',
+              uuid: matchingUuid
             });
           } catch (calendarError) {
             Logger.log(`カレンダー追加エラー (${timeRange}): ${calendarError.toString()}`);
@@ -1148,15 +1163,17 @@ function processMultipleShiftRequests(spreadsheet, requestData) {
       } catch (mergeError) {
         Logger.log(`時間範囲マージエラー: ${mergeError.toString()}`);
         // マージに失敗した場合は個別に追加
-        validTimeSlots.forEach(timeSlot => {
+        validTimeSlots.forEach((timeSlot, index) => {
           try {
+            const matchingUuid = rowsToAdd[index]?.[5] || generateUUID();
             addToCalendar({
               userId,
               userName,
               userEmail,
               date,
               time: timeSlot,
-              content: content || 'シフト'
+              content: content || 'シフト',
+              uuid: matchingUuid
             });
           } catch (calendarError) {
             Logger.log(`カレンダー追加エラー (${timeSlot}): ${calendarError.toString()}`);
@@ -1242,72 +1259,40 @@ function deleteShiftRequest(spreadsheet, data) {
       };
     }
     
-    const { userId, userName, userEmail, date, time, timeSlots, adminUserId } = data;
-    
-    // 権限チェック: 管理者または本人のシフトのみ削除可能
-    if (!adminUserId && !userId) {
+    // UUIDまたはUUID配列が必須
+    const uuids = data.uuids || (data.uuid ? [data.uuid] : []);
+    if (uuids.length === 0) {
       return {
         success: false,
-        error: 'unauthorized',
-        message: '権限がありません'
+        error: 'uuid_required',
+        message: 'UUIDが必要です'
       };
     }
-    
-    // 削除対象の時間スロット配列を取得（timeSlots優先、なければtimeを配列化）
-    const targetTimeSlots = timeSlots || [time];
     
     const allData = shiftSheet.getDataRange().getValues();
     const deletedRows = [];
     
-    // UUIDが指定されている場合はUUIDのみで検索
-    if (data.uuid) {
-      Logger.log('UUIDベース削除: ' + data.uuid);
-      for (let i = 1; i < allData.length; i++) {
-        const row = allData[i];
-        const rowUuid = row[5]; // F列: UUID
+    // UUID配列で検索して削除
+    Logger.log('UUIDベース削除: ' + JSON.stringify(uuids));
+    for (let i = 1; i < allData.length; i++) {
+      const row = allData[i];
+      const rowUuid = row[5]; // F列: UUID
+      
+      if (uuids.includes(rowUuid)) {
+        const timeSlot = row[3]; // D列: 時間帯
+        const userId = row[1]; // B列: ユーザーID
+        const userEmail = row[4]; // E列: ユーザー名（メールから取得可能）
+        const date = row[2]; // C列: シフト日付
         
-        if (rowUuid === data.uuid) {
-          const timeSlot = row[3]; // D列: 時間帯
-          deletedRows.push({ 
-            index: i + 1, 
-            timeSlot: timeSlot,
-            uuid: rowUuid
-          });
-          Logger.log(`UUIDで削除対象発見: ${data.uuid}, 時間帯: ${timeSlot}`);
-          break; // UUIDは一意なので1つ見つかったら終了
-        }
-      }
-    } else {
-      // 従来の方法（後方互換性のため）
-      Logger.log('従来方式削除（ユーザーID、日付、時間帯で検索）');
-      for (const timeSlot of targetTimeSlots) {
-        for (let i = 1; i < allData.length; i++) {
-          const row = allData[i];
-          
-          let rowDateCheckStr = '';
-          try {
-            const dateValue = row[2]; // C列: シフト日付
-            if (dateValue instanceof Date) {
-              rowDateCheckStr = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-            } else if (typeof dateValue === 'string') {
-              rowDateCheckStr = dateValue;
-            }
-          } catch (e) {
-            rowDateCheckStr = '';
-          }
-          
-          if (row[1] === userId &&         // B列: ユーザーID
-              rowDateCheckStr === date &&  // C列: シフト日付
-              row[3] === timeSlot) {       // D列: 時間帯
-            const uuid = row[5]; // F列: UUID
-            deletedRows.push({ 
-              index: i + 1, 
-              timeSlot: timeSlot,
-              uuid: uuid
-            });
-            break;
-          }
-        }
+        deletedRows.push({ 
+          index: i + 1, 
+          timeSlot: timeSlot,
+          uuid: rowUuid,
+          userId: userId,
+          userEmail: userEmail,
+          date: date
+        });
+        Logger.log(`UUIDで削除対象発見: ${rowUuid}, 時間帯: ${timeSlot}`);
       }
     }
     
@@ -1327,16 +1312,16 @@ function deleteShiftRequest(spreadsheet, data) {
       shiftSheet.deleteRow(deleteInfo.index);
     }
     
-    // Google Calendarからも削除（各時間スロットについて、UUID付き）
+    // Google Calendarからも削除（UUIDで削除）
     for (const deleteInfo of deletedRows) {
       try {
         deleteFromCalendar({
-          userId,
-          userName,
-          userEmail,
-          date,
+          userId: deleteInfo.userId,
+          userName: '', // 不要だがdeleteFromCalendar関数の互換性のため
+          userEmail: deleteInfo.userEmail,
+          date: deleteInfo.date,
           time: deleteInfo.timeSlot,
-          uuid: deleteInfo.uuid  // UUIDを追加
+          uuid: deleteInfo.uuid
         });
       } catch (calendarError) {
         Logger.log('カレンダーからの削除に失敗: ' + calendarError.toString());
@@ -1848,7 +1833,7 @@ function processShiftSubmission(spreadsheet, data) {
         shiftsSheet.appendRow(newRow);
         Logger.log('シフトを追加（UUID付き）:', newRow);
         
-        // Google Calendarにも追加（UUID付き）
+        // Google Calendarにも追加（UUID付き、特別シフトの場合はcontentなし）
         try {
           addToCalendar({
             userId: data.userId,
@@ -1856,7 +1841,7 @@ function processShiftSubmission(spreadsheet, data) {
             userEmail: data.userEmail || '', // リクエストから取得
             date: data.date,
             time: slot,
-            content: data.content || 'シフト',
+            content: 'シフト',  // 特別シフトでもcontentは固定値
             uuid: uuid  // UUIDを追加
           });
           Logger.log(`カレンダーに追加完了: ${slot}, UUID: ${uuid}`);
