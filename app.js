@@ -2366,9 +2366,6 @@ let currentShiftRequestDate = null;
 let currentShiftCapacity = 0;
 let currentShiftCounts = {};
 let currentUserShifts = []; // ユーザーのシフトデータをキャッシュ
-// 不要な変数を削除（日付詳細モーダル用のselectedTimeSlotsとは別）
-
-// submitInlineShiftRequest関数を削除（日付詳細モーダルから申請するため不要）
 
 function applyForShift(dateKey) {
     if (!currentUser) {
