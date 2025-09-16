@@ -220,7 +220,9 @@ async function reloadAdminShifts() {
     try {
         // キャッシュをクリアして再読み込み
         allShiftsCache = null;
+        capacityCache = null;
         await loadAllShiftsToCache();
+        await loadCapacityToCache();
         displayShiftList();
         
         // 成功メッセージ
@@ -879,10 +881,12 @@ function mergeShiftsByPerson(shiftsForDate) {
         if (!shiftsByPerson[personKey]) {
             shiftsByPerson[personKey] = {
                 person: shift,
-                timeSlots: []
+                timeSlots: [],
+                uuids: [] // UUID配列を追加
             };
         }
         shiftsByPerson[personKey].timeSlots.push(shift.timeSlot || shift.time);
+        shiftsByPerson[personKey].uuids.push(shift.uuid); // UUIDを収集
     });
     
     // 各個人の時間帯をマージ
@@ -894,7 +898,8 @@ function mergeShiftsByPerson(shiftsForDate) {
         mergedTimeSlots.forEach(timeSlot => {
             mergedShifts.push({
                 ...personData.person,
-                timeSlot: timeSlot
+                timeSlot: timeSlot,
+                uuids: personData.uuids // UUID配列を保持
             });
         });
     });
@@ -1045,29 +1050,47 @@ function expandTimeRange(timeRange) {
     return timeSlots;
 }
 
-async function deleteShiftFromModal(buttonElement, shift) {
+async function deleteShiftFromModal(buttonElement, uuids) {
+    if (!uuids || !Array.isArray(uuids) || uuids.length === 0) {
+        alert('シフト情報が不正です。');
+        return;
+    }
+    
+    // UUIDs配列に対応するすべてのシフト情報を取得
+    const targetShifts = [];
+    if (allShiftsCache) {
+        targetShifts.push(...allShiftsCache.filter(s => uuids.includes(s.uuid)));
+    }
+    if (targetShifts.length === 0 && myShiftsCache) {
+        targetShifts.push(...myShiftsCache.filter(s => uuids.includes(s.uuid)));
+    }
+    
+    if (targetShifts.length === 0) {
+        alert('シフト情報が見つかりません。');
+        return;
+    }
+    
+    const firstShift = targetShifts[0];
+    
     // 管理者または本人のシフトのみ削除可能
-    if (!isAdminUser && shift.userId !== currentUser.sub) {
+    if (!isAdminUser && firstShift.userId !== currentUser.sub) {
         alert('自分のシフトまたは管理者権限が必要です。');
         return;
     }
     
-    const userName = getShiftDisplayName(shift);
-    const dateKey = shift.shiftDate || shift.date;
-    const timeSlot = shift.timeSlot || shift.time;
+    const userName = getShiftDisplayName(firstShift);
+    const dateKey = firstShift.shiftDate || firstShift.date;
     
-    // 時間範囲を30分単位に分解
-    const timeSlots = expandTimeRange(timeSlot);
-    
-    const displayTimeRange = timeSlots.length > 1 ? 
-        `${timeSlots[0].split('-')[0]}-${timeSlots[timeSlots.length-1].split('-')[1]}` : 
-        timeSlot;
+    // 複数の時間帯をマージして表示用の時間帯を作成
+    const timeSlots = targetShifts.map(shift => shift.timeSlot || shift.time);
+    const mergedTimeSlots = mergeConsecutiveTimeSlots(timeSlots);
+    const displayTimeRange = mergedTimeSlots.length === 1 ? mergedTimeSlots[0] : mergedTimeSlots.join(', ');
     
     if (!confirm(`${userName}さんの${dateKey} ${displayTimeRange}のシフトを削除しますか？`)) {
         return;
     }
     
-    // 対象の削除ボタンのみ無効化
+    // ボタンを無効化
     const originalText = buttonElement.textContent;
     buttonElement.disabled = true;
     buttonElement.textContent = '削除中...';
@@ -1076,7 +1099,7 @@ async function deleteShiftFromModal(buttonElement, shift) {
     try {
         const deleteData = {
             type: 'deleteShift',
-            uuid: shift.uuid // UUIDのみ送信
+            uuids: uuids // UUIDs配列を送信
         };
         
         // シフト削除リクエストを送信
@@ -1100,24 +1123,28 @@ async function deleteShiftFromModal(buttonElement, shift) {
         
         // データを再読み込みしてキャッシュを更新
         if (isAdminUser) {
-            // キャッシュをクリアして再読み込み
+            // リロードボタンと同じ処理を実行
             allShiftsCache = null;
             await loadAllShiftsToCache();
+
+            // カレンダーを再読み込み
+            generateCalendar('shiftCalendarContainer');
+
             displayShiftList();
         } else {
             // 一般ユーザーの場合もキャッシュを更新
             myShiftsCache = null;
             await loadMyShiftsToCache();
+            
+            // カレンダーを再読み込み
+            generateCalendar('shiftCalendarContainer');
         }
-        
-        // カレンダーを再読み込み
-        generateCalendar('shiftCalendarContainer');
         
     } catch (error) {
         console.error('シフト削除でエラー:', error);
         alert('シフトの削除に失敗しました。再度お試しください。');
-        
-        // エラー時は対象のボタンのみ元に戻す
+    } finally {
+        // ボタンの状態を復元
         buttonElement.disabled = false;
         buttonElement.textContent = originalText;
         buttonElement.style.opacity = '1';
@@ -1192,15 +1219,15 @@ function openShiftDetailModal(dateKey) {
             `;
             
             timeSlotGroups[timeSlot].forEach(shift => {
+                console.log("shift", shift);
                 html += `
                     <div class="shift-detail-person">
                         <div class="shift-person-info">
                             <div class="shift-person-name">${getShiftDisplayName(shift)}</div>
                             <div class="shift-person-email">${shift.userEmail || shift.email || ''}</div>
-                            ${shift.content && shift.content !== 'シフト' ? `<div class="shift-person-note">${shift.content}</div>` : ''}
                         </div>
                         ${(isAdminUser || shift.userId === currentUser.sub) ? `
-                            <button class="shift-delete-btn" data-shift='${JSON.stringify(shift)}' onclick="deleteShiftFromModal(this, JSON.parse(this.dataset.shift))"
+                            <button class="shift-delete-btn" onclick="deleteShiftFromModal(this, [${(shift.uuids || []).map(uuid => `'${uuid}'`).join(',')}])">
                                 削除
                             </button>
                         ` : ''}
@@ -1917,7 +1944,7 @@ function displayMyShifts(container, shiftsData) {
         // 削除ボタンの表示（翌日以降のシフトのみ）
         const deleteButtonHTML = canDelete ? 
             `<td class="shift-actions">
-                <button class="my-shift-delete-btn" onclick="deleteMyShift([${(shift.uuids || []).map(uuid => `'${uuid}'`).join(',')}])">
+                <button class="my-shift-delete-btn" onclick="deleteMyShift(this, [${(shift.uuids || []).map(uuid => `'${uuid}'`).join(',')}])">
                     削除
                 </button>
             </td>` :
@@ -1952,7 +1979,7 @@ function displayMyShifts(container, shiftsData) {
 }
 
 // 自分のシフト削除機能
-async function deleteMyShift(uuids) {
+async function deleteMyShift(buttonElement, uuids) {
     if (!currentUser) {
         alert('ログインしてください。');
         return;
@@ -1963,19 +1990,20 @@ async function deleteMyShift(uuids) {
         return;
     }
     
-    // myShiftsCacheから最初のUUIDでシフト情報を検索（表示用）
-    let targetShift = null;
+    // UUIDsに対応するシフト情報を取得
+    const targetShifts = [];
     if (myShiftsCache) {
-        targetShift = myShiftsCache.find(shift => uuids.includes(shift.uuid));
+        targetShifts.push(...myShiftsCache.filter(shift => uuids.includes(shift.uuid)));
     }
     
-    if (!targetShift) {
+    if (targetShifts.length === 0) {
         alert('シフト情報が見つかりません。');
         return;
     }
     
-    // 翌日以降のシフトかチェック
-    const targetDate = new Date(targetShift.shiftDate || targetShift.date);
+    // 最初のシフトで日付チェック
+    const firstShift = targetShifts[0];
+    const targetDate = new Date(firstShift.shiftDate || firstShift.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -1986,12 +2014,22 @@ async function deleteMyShift(uuids) {
         return;
     }
     
-    const shiftDate = targetShift.shiftDate || targetShift.date;
-    const timeSlot = targetShift.timeSlot || targetShift.time;
+    const shiftDate = firstShift.shiftDate || firstShift.date;
     
-    if (!confirm(`${shiftDate} ${timeSlot}のシフトを削除しますか？`)) {
+    // 複数の時間帯をマージして表示用の時間帯を作成
+    const timeSlots = targetShifts.map(shift => shift.timeSlot || shift.time);
+    const mergedTimeSlots = mergeConsecutiveTimeSlots(timeSlots);
+    const displayTimeSlot = mergedTimeSlots.length === 1 ? mergedTimeSlots[0] : mergedTimeSlots.join(', ');
+    
+    if (!confirm(`${shiftDate} ${displayTimeSlot}のシフトを削除しますか？`)) {
         return;
     }
+    
+    // ボタンを無効化
+    const originalText = buttonElement.textContent;
+    buttonElement.disabled = true;
+    buttonElement.textContent = '削除中...';
+    buttonElement.style.opacity = '0.6';
     
     try {
         const deleteData = {
@@ -2010,7 +2048,7 @@ async function deleteMyShift(uuids) {
         });
         
         // no-corsモードでは成功として扱う
-        alert(`${shiftDate} ${timeSlot}のシフトを削除しました。`);
+        alert(`${shiftDate} ${displayTimeSlot}のシフトを削除しました。`);
         
         // 自分のシフト一覧を再読み込み
         await loadMyShiftsToCache();

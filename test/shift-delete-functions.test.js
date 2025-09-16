@@ -107,30 +107,16 @@ describe('シフト削除機能テスト', () => {
   });
 
   describe('deleteShiftFromModal関数の動作パターン', () => {
-    test('ボタン状態管理の検証', () => {
-      const mockButton = {
-        textContent: '削除',
-        disabled: false,
-        style: { opacity: '1' }
-      };
+    test('複数UUID配列の検証', () => {
+      const validUuids = ['uuid1', 'uuid2'];
+      const singleUuid = ['uuid1'];
+      const emptyUuids = [];
+      const nullUuids = null;
 
-      // 削除開始時の状態
-      mockButton.disabled = true;
-      mockButton.textContent = '削除中...';
-      mockButton.style.opacity = '0.6';
-
-      expect(mockButton.disabled).toBe(true);
-      expect(mockButton.textContent).toBe('削除中...');
-      expect(mockButton.style.opacity).toBe('0.6');
-
-      // 削除完了時の状態復元
-      mockButton.disabled = false;
-      mockButton.textContent = '削除';
-      mockButton.style.opacity = '1';
-
-      expect(mockButton.disabled).toBe(false);
-      expect(mockButton.textContent).toBe('削除');
-      expect(mockButton.style.opacity).toBe('1');
+      expect(Array.isArray(validUuids) && validUuids.length > 0).toBe(true);
+      expect(Array.isArray(singleUuid) && singleUuid.length > 0).toBe(true);
+      expect(Array.isArray(emptyUuids) && emptyUuids.length > 0).toBe(false);
+      expect(Array.isArray(nullUuids) && nullUuids && nullUuids.length > 0).toBe(false);
     });
 
     test('モーダル制御の検証', () => {
@@ -166,23 +152,24 @@ describe('シフト削除機能テスト', () => {
     });
 
     test('削除リクエストデータ形式', () => {
-      // deleteShift / deleteShiftFromModal用
-      const singleDeleteData = {
-        type: 'deleteShift',
-        uuid: 'single-uuid'
-      };
-
-      // deleteMyShift用
+      // deleteMyShift / deleteShiftFromModal用（両方とも複数UUID対応）
       const multipleDeleteData = {
         type: 'deleteShift',
         uuids: ['uuid1', 'uuid2']
       };
 
-      expect(singleDeleteData.type).toBe('deleteShift');
-      expect(typeof singleDeleteData.uuid).toBe('string');
-      
+      const singleDeleteData = {
+        type: 'deleteShift',
+        uuids: ['single-uuid']
+      };
+
       expect(multipleDeleteData.type).toBe('deleteShift');
       expect(Array.isArray(multipleDeleteData.uuids)).toBe(true);
+      expect(multipleDeleteData.uuids.length).toBe(2);
+      
+      expect(singleDeleteData.type).toBe('deleteShift');
+      expect(Array.isArray(singleDeleteData.uuids)).toBe(true);
+      expect(singleDeleteData.uuids.length).toBe(1);
     });
   });
 
