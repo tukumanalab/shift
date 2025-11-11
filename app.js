@@ -66,10 +66,16 @@ function getShiftDisplayName(shift) {
 
 function handleCredentialResponse(response) {
     const responsePayload = decodeJwtResponse(response.credential);
-    
+
     // Check if email is authorized admin
     isAdminUser = AUTHORIZED_EMAILS.includes(responsePayload.email);
-    
+
+    // ログインモードをコンソールに表示
+    console.log('=== Google Login Information ===');
+    console.log('User Email:', responsePayload.email);
+    console.log('User Type:', isAdminUser ? '管理者' : '一般ユーザー');
+    console.log('================================');
+
     showProfile(responsePayload);
 }
 
