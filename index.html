@@ -1910,75 +1910,22 @@
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="navbar-brand">
-            <img src="logo.png" alt="Logo" class="navbar-logo">
-            シフト
-        </div>
-        <button class="hamburger-menu hidden" id="hamburgerBtn">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-        <div id="profileInfo" class="navbar-profile hidden">
-            <img id="userImage" src="" alt="ユーザー画像">
-            <div class="user-info">
-                <p class="user-name" id="userName"></p>
-                <p class="user-email" id="userEmail"></p>
-            </div>
-            <button class="logout-btn-small" onclick="signOut()">ログアウト</button>
-        </div>
+    <nav class="navbar" style="display: none;">
     </nav>
-
-    <!-- モバイルメニュー -->
-    <div id="mobileMenu" class="mobile-menu">
-        <div id="mobileUserSection" class="mobile-user-section hidden">
-            <div class="mobile-user-content">
-                <img id="mobileUserImage" src="" alt="ユーザー画像">
-                <div class="mobile-user-info">
-                    <p class="mobile-user-name" id="mobileUserName"></p>
-                    <p class="mobile-user-email" id="mobileUserEmail"></p>
-                </div>
-            </div>
-            <button class="mobile-logout-btn" onclick="signOut()">ログアウト</button>
-        </div>
-        <div class="mobile-menu-item" data-tab="settings" id="mobileSettingsItem">設定</div>
-        <a href="help.html" target="_blank" class="mobile-help-link">ヘルプ</a>
-    </div>
-    
-    <!-- プロフィール入力促進通知 -->
-    <div id="profileNotification" class="profile-notification hidden">
-        <div class="notification-content">
-            <span class="notification-icon">⚠️</span>
-            <span class="notification-text">本名とニックネームの両方を入力してください。</span>
-            <button class="notification-btn" onclick="openSettingsTab()">設定で入力する</button>
-        </div>
-    </div>
     
     <div class="main-content">
-        <div id="loginPrompt" style="text-align: center; margin-top: 100px;">
-            <p>Googleアカウントでログインしてください。</p>
-            
-            <div id="g_id_onload"
-                 data-client_id=""
-                 data-context="signin"
-                 data-ux_mode="popup"
-                 data-callback="handleCredentialResponse"
-                 data-auto_prompt="false">
-            </div>
-            <div class="g_id_signin"
-                 data-type="standard"
-                 data-shape="rectangular"
-                 data-theme="outline"
-                 data-text="signin_with"
-                 data-size="medium"
-                 style="margin: 20px auto; display: inline-block;">
-            </div>
-            
-            <p style="margin-top: 20px;">
-                <a href="help.html" target="_blank" style="color: #4285f4; text-decoration: none; font-size: 14px;">
-                    📖 システムの使い方を確認する（ヘルプページ）
+        <div id="migrationNotice" style="text-align: center; margin-top: 100px; padding: 20px;">
+            <h2 style="color: #333; margin-bottom: 20px;">サイト移行のお知らせ</h2>
+            <p style="font-size: 16px; color: #555; margin-bottom: 15px;">
+                シフト管理システムは新しいサイトに移行しました。
+            </p>
+            <p style="font-size: 18px; margin-bottom: 20px;">
+                <a href="https://tukumana.si.aoyama.ac.jp/shift2/" style="color: #4285f4; text-decoration: none; font-weight: bold;">
+                    https://tukumana.si.aoyama.ac.jp/shift2/
                 </a>
+            </p>
+            <p id="redirectCountdown" style="font-size: 14px; color: #888;">
+                <span id="countdownSeconds">5</span> 秒後に自動的に新しいサイトへ移動します...
             </p>
         </div>
         
@@ -2150,8 +2097,20 @@
         </div>
     </div>
 
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="config.js"></script>
-    <script src="app.js"></script>
+    <script>
+        // 新サイトへの自動リダイレクト
+        (function() {
+            var seconds = 5;
+            var countdownEl = document.getElementById('countdownSeconds');
+            var timer = setInterval(function() {
+                seconds--;
+                if (countdownEl) countdownEl.textContent = seconds;
+                if (seconds <= 0) {
+                    clearInterval(timer);
+                    window.location.href = 'https://tukumana.si.aoyama.ac.jp/shift2/';
+                }
+            }, 1000);
+        })();
+    </script>
 </body>
 </html>
