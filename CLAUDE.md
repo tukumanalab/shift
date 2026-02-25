@@ -72,7 +72,6 @@ This is a Japanese shift management web application with Google OAuth authentica
 #### 4. Data Storage & Backend
 - **Google Spreadsheet Backend**: All data stored in Google Sheets
 - **Google Apps Script API**: Handles server-side logic and data processing
-- **Google Calendar Integration**: Automatically syncs approved shifts to Google Calendar
 
 ### Technical Architecture
 
@@ -84,7 +83,6 @@ This is a Japanese shift management web application with Google OAuth authentica
 #### Backend (Google Apps Script)
 - **RESTful API**: Handles GET/POST requests for data operations
 - **Spreadsheet Integration**: Direct integration with Google Sheets for data persistence
-- **Calendar Sync**: Automatic event creation in Google Calendar
 - **Property Service**: Secure storage of configuration settings
 
 #### Data Structure
@@ -123,7 +121,6 @@ remainingSlots = configuredCapacity - currentApplications
 
 #### Configuration
 - Google OAuth Client ID configured in both frontend and backend
-- Calendar ID stored securely in Google Apps Script Properties Service
 - Authorized user emails managed through configuration
 
 ### Security Considerations
@@ -132,7 +129,7 @@ remainingSlots = configuredCapacity - currentApplications
 - **No Server-side Session**: Stateless authentication using Google tokens
 - **Secure Configuration**: Sensitive settings stored in Google Apps Script Properties
 
-This system provides a complete shift management solution with real-time availability tracking and seamless integration with Google services.
+This system provides a complete shift management solution with real-time availability tracking using Google Spreadsheets for data storage.
 
 ## Architecture
 
