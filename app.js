@@ -280,47 +280,6 @@ async function reloadMyShifts() {
     }
 }
 
-async function syncAllShiftsToCalendar() {
-    if (!currentUser) {
-        alert('ログインが必要です。');
-        return;
-    }
-    
-    // 確認ダイアログを表示
-    const confirmSync = confirm('本当にGoogleカレンダーと同期し直しますか？\n既存のカレンダー上のシフトをすべて削除してから、再度同期します。');
-    if (!confirmSync) {
-        return;
-    }
-    
-    const syncBtn = document.getElementById('syncBtn');
-    syncBtn.disabled = true;
-    syncBtn.textContent = '削除・同期中...';
-    
-    try {
-        await fetch(GOOGLE_APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            mode: 'no-cors',
-            body: JSON.stringify({
-                type: 'syncAll',
-                userId: currentUser.sub
-            })
-        });
-        
-        console.log('既存のシフトを削除してから全シフトをカレンダーに同期しました');
-        alert('カレンダーから既存のシフトを削除し、全シフトを再同期しました！');
-        
-    } catch (error) {
-        console.error('同期に失敗しました:', error);
-        alert('同期に失敗しました。再度お試しください。');
-    } finally {
-        syncBtn.disabled = false;
-        syncBtn.textContent = 'Googleカレンダーと同期し直す';
-    }
-}
-
 
 function signOut() {
     google.accounts.id.disableAutoSelect();
