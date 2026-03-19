@@ -1,5 +1,7 @@
 # アルバイトシフト管理
 
+> **このアプリケーションは [https://tukumana.si.aoyama.ac.jp/shift2/](https://tukumana.si.aoyama.ac.jp/shift2/) に移行しました。** 今後はそちらをご利用ください。
+
 Google OAuth認証とGoogle Sheets連携による高機能なシフト管理アプリケーションです。
 
 ## 概要
